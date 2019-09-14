@@ -92,9 +92,9 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Insert value at specific index
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if index exceeds the length of the skiplist
     ///
     /// # Examples
@@ -185,23 +185,23 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Remove item at specific index
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if index exceeds the length of the skiplist
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.insert(0, 0);
     /// sk.insert(1, 1);
     /// assert_eq!(sk.remove(0), 0);
     /// assert_eq!(sk.remove(0), 1);
     /// ```
-    /// 
+    ///
     pub fn remove(&mut self, index: usize) -> V {
         if index > self.length {
             panic!("Index out of bounds.");
@@ -272,24 +272,15 @@ impl<V: Debug> SkipList<V> {
         the_node.value.unwrap()
     }
 
-    /// Returns value at the given index, or `None` if the index is out of bounds.
-    /// 
-    /// # Example
-    /// 
-    /// ```
-    /// use skiplist::skiplist::SkipList;
-    /// 
-    /// let mut sk = SkipList::new();
-    /// sk.insert(0, 0);
-    /// sk.insert(1, 1);
-    /// assert_eq!(sk.get(0), Some(&0));
-    /// assert_eq!(sk.get(1), Some(&1));
-    /// assert_eq!(sk.get(2), None);
-    /// ```
-    /// 
-    pub fn get(&self, index: usize) -> Option<&V> {
+    /// Returns pointer to the given index
+    ///
+    /// Panics
+    ///
+    /// Panics if the index exceeds the length of the skiplist
+    ///
+    fn _get_ptr(&self, index: usize) -> *const Node<V> {
         if self.length <= index {
-            return None;
+            panic!("Index out of bounds.");
         }
 
         let actual_index = index + 1;
@@ -297,7 +288,7 @@ impl<V: Debug> SkipList<V> {
         let mut cur_node: *const _ = &*self.head;
         let mut cur_index = 0;
 
-        let the_node = unsafe {
+        unsafe {
             while actual_index != cur_index {
                 let next_index = cur_index + (*cur_node).links_len[cur_level];
                 // if current node don't have next, cur_index equals next_index
@@ -308,31 +299,132 @@ impl<V: Debug> SkipList<V> {
                 }
                 cur_level -= 1;
             }
-
-            &*cur_node
         };
 
+        cur_node
+    }
+
+    /// Returns value at the given index, or `None` if the index is out of bounds.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.insert(0, 0);
+    /// sk.insert(1, 1);
+    /// assert_eq!(sk.get(0), Some(&0));
+    /// assert_eq!(sk.get(1), Some(&1));
+    /// assert_eq!(sk.get(2), None);
+    /// ```
+    ///
+    pub fn get(&self, index: usize) -> Option<&V> {
+        if self.length <= index {
+            return None;
+        }
+
+        let the_node = unsafe { &*self._get_ptr(index) };
         Some(the_node.value.as_ref().unwrap())
     }
 
+    /// Returns mutable value at the given index, or `None` if the index is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.insert(0, 0);
+    /// sk.insert(1, 1);
+    /// *sk.get_mut(0).unwrap() = 10;
+    /// assert_eq!(sk.get(0), Some(&10));
+    /// ```
+    ///
     pub fn get_mut(&mut self, index: usize) -> Option<&mut V> {
-        unimplemented!()
+        if self.length <= index {
+            return None;
+        }
+
+        let the_node = unsafe { &mut *(self._get_ptr(index) as *mut Node<V>) };
+        Some(the_node.value.as_mut().unwrap())
     }
 
+    /// Push a value at the front of skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_front(0);
+    /// sk.push_front(1);
+    /// sk.push_front(2);
+    /// assert_eq!(sk.get(0), Some(&2));
+    /// ```
     pub fn push_front(&mut self, value: V) {
-        unimplemented!()
+        self.insert(0, value)
     }
 
+    /// Remove the element at the front of skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_front(0);
+    /// sk.push_front(1);
+    /// sk.pop_front();
+    /// assert_eq!(sk.get(0), Some(&0));
+    /// ```
     pub fn pop_front(&mut self) -> Option<V> {
-        unimplemented!()
+        if self.length == 0 {
+            return None;
+        }
+
+        Some(self.remove(0))
     }
 
+    /// Push a value at the end of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// assert_eq!(sk.get(1), Some(&1));
+    /// ```
     pub fn push_back(&mut self, value: V) {
-        unimplemented!()
+        self.insert(self.length, value)
     }
 
+    /// Remove the element at the end of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// assert_eq!(sk.pop_back(), Some(1));
+    /// assert_eq!(sk.pop_back(), Some(0));
+    /// assert_eq!(sk.pop_back(), None);
+    /// ```
     pub fn pop_back(&mut self) -> Option<V> {
-        unimplemented!()
+        if self.length == 0 {
+            return None;
+        }
+
+        Some(self.remove(self.length-1))
     }
 
     pub fn iter(&self) -> Iter<'_, V> {
