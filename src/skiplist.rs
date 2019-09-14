@@ -36,19 +36,86 @@ pub struct SkipList<V> {
 }
 
 pub struct Iter<'a, V> {
-    phantom: PhantomData<&'a V>,
+    current: Option<&'a Node<V>>,
+}
+
+impl<'a, V> Iterator for Iter<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.map(|node| {
+            self.current = node.next.as_ref().map(|node| &**node);
+            node.value.as_ref().unwrap()
+        })
+    }
 }
 
 pub struct ReverseIter<'a, V> {
+    current: *const Node<V>,
     phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseIter<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        unsafe {
+            let result = (*self.current).value.as_ref();
+            let pre_ptr = (*self.current).prev.unwrap() as *const Node<V>;
+            // The head node don't have a value, it can be a mark for iteration ending
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null(),
+                Some(_) => self.current = pre_ptr,
+            }
+            result
+        }
+    }
 }
 
 pub struct IterMut<'a, V> {
-    phantom: PhantomData<&'a V>,
+    current: Option<&'a mut Node<V>>,
+}
+
+impl <'a, V> Iterator for IterMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().map(|node| {
+            self.current = node.next.as_mut().map(|node| &mut **node);
+            node.value.as_mut().unwrap()
+        })
+    }
 }
 
 pub struct ReverseIterMut<'a, V> {
+    current: *mut Node<V>,
     phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseIterMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        unsafe {
+            let result = (*self.current).value.as_mut();
+            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            // The head node don't have a value, it can be a mark for iteration ending
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null_mut(),
+                Some(_) => self.current = pre_ptr,
+            }
+            result
+        }
+    }
+
 }
 
 pub struct Range<'a, V> {
@@ -427,19 +494,126 @@ impl<V: Debug> SkipList<V> {
         Some(self.remove(self.length-1))
     }
 
+    /// Returns an iterator of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// sk.push_back(2);
+    /// 
+    /// let mut i = 0;
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &i);
+    ///     i += 1;
+    /// }
+    /// ```
     pub fn iter(&self) -> Iter<'_, V> {
-        unimplemented!()
+        Iter {
+            current: self.head.next.as_ref().map(|node| &**node),
+        }
     }
 
+
+    /// Returns an reverse iterator of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_front(0);
+    /// sk.push_front(1);
+    /// sk.push_front(2);
+    /// 
+    /// let mut i = 0;
+    /// for value in sk.reverse_iter() {
+    ///     assert_eq!(value, &i);
+    ///     i += 1;
+    /// }
+    /// ```
     pub fn reverse_iter(&self) -> ReverseIter<'_, V> {
-        unimplemented!()
+        if self.length == 0 {
+            return ReverseIter {
+                current: std::ptr::null(),
+                phantom: PhantomData,
+            }
+        }
+
+        ReverseIter {
+            current: self._get_ptr(self.length-1),
+            phantom: PhantomData,
+
+        }
     }
 
+    /// Returns a mutable iterator of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// sk.push_back(2);
+    /// 
+    /// for value in sk.iter_mut() {
+    ///     *value *= 2;
+    /// }
+    /// 
+    /// let mut i = 0;
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &i);
+    ///     i += 2;
+    /// }
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, V> {
-        unimplemented!()
+        IterMut {
+            current: self.head.next.as_mut().map(|node| &mut **node),
+        }
     }
+
+    /// Returns a mutable reverse iterator of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// sk.push_back(2);
+    /// 
+    /// let mut i = 0;
+    /// for value in sk.reverse_iter_mut() {
+    ///     *value += i;
+    ///     i += 1;
+    /// }
+    /// 
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &2);
+    /// }
+    /// ```
     pub fn reverse_iter_mut(&mut self) -> ReverseIterMut<'_, V> {
-        unimplemented!()
+        if self.length == 0 {
+            return ReverseIterMut {
+                current: std::ptr::null_mut(),
+                phantom: PhantomData,
+            }
+        }
+
+        ReverseIterMut {
+            current: self._get_ptr(self.length-1) as *mut Node<V>,
+            phantom: PhantomData,
+        }
     }
 
     pub fn range<R>(&self, range: R) -> Range<'_, V>
