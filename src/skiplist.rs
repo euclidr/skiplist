@@ -1,5 +1,5 @@
 use crate::level_generator::LevelGenerator;
-use std::fmt::Debug;
+// use std::fmt::Debug;
 
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
@@ -47,6 +47,16 @@ impl<'a, V> Iterator for Iter<'a, V> {
             self.current = node.next.as_ref().map(|node| &**node);
             node.value.as_ref().unwrap()
         })
+    }
+}
+
+pub struct IntoIter<V>(SkipList<V>);
+
+impl<V> Iterator for IntoIter<V> {
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop_front()
     }
 }
 
@@ -223,7 +233,7 @@ impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
     }
 }
 
-impl<V: Debug> SkipList<V> {
+impl<V> SkipList<V> {
     /// Create a skiplist with default LevelGenerator that
     /// each level's propability is 1/2 of its previous level,
     /// and less than 32 levels
@@ -832,26 +842,26 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Returns a range iterator of the skiplist, in which elements is mutable
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if start_bound is greater than end_bound
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
-    /// 
+    ///
     /// for i in 0..10 {
     ///     sk.push_back(i);
     /// }
-    /// 
+    ///
     /// for value in sk.range_mut(..) {
     ///     *value *= 2;
     /// }
-    /// 
+    ///
     /// for value in sk.range(1..7) {
     ///     assert_eq!(*value % 2, 0);
     /// }
@@ -903,7 +913,7 @@ impl<V: Debug> SkipList<V> {
     ///     *value += a;
     ///     a += 1;
     /// }
-    /// 
+    ///
     /// for value in sk.range(..8) {
     ///     assert_eq!(value, &7);
     /// }
@@ -938,8 +948,83 @@ impl<V: Debug> SkipList<V> {
         }
     }
 
-    pub fn dedup(&mut self) {
-        unimplemented!()
+    /// Remove consecutive duplicated items
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    ///
+    /// sk.push_back(0);
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// sk.push_back(1);
+    /// sk.push_back(1);
+    /// sk.push_back(2);
+    ///
+    /// sk.dedup();
+    ///
+    /// let mut idx = 0;
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &idx);
+    ///     idx += 1;
+    /// }
+    /// ```
+    pub fn dedup(&mut self)
+    where
+        V: Ord,
+    {
+        if self.length == 0 {
+            return;
+        }
+
+        let mut index = 0;
+        unsafe {
+            let node = self.head.next.as_ref().unwrap();
+            let mut current = &**node as *const Node<V>;
+            while !current.is_null() {
+                match (*current).next.as_ref() {
+                    None => current = std::ptr::null(),
+                    Some(next) => match next.value.cmp(&(*current).value) {
+                        std::cmp::Ordering::Equal => {
+                            self.remove(index + 1);
+                        }
+                        _ => {
+                            current = &**next as *const Node<V>;
+                            index += 1;
+                        }
+                    },
+                }
+            }
+        };
+    }
+}
+
+impl<V> IntoIterator for SkipList<V> {
+    type Item = V;
+    type IntoIter = IntoIter<V>;
+
+    /// Returns a moved iterator of the skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    /// let mut idx = 0;
+    /// for value in sk.into_iter() {
+    ///     assert_eq!(value, idx);
+    ///     idx += 1;
+    /// }
+    /// ```
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter(self)
     }
 }
 
