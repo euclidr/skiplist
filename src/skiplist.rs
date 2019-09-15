@@ -2,7 +2,7 @@ use crate::level_generator::LevelGenerator;
 use std::fmt::Debug;
 
 use std::marker::PhantomData;
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 
 struct Node<V> {
     value: Option<V>,
@@ -80,7 +80,7 @@ pub struct IterMut<'a, V> {
     current: Option<&'a mut Node<V>>,
 }
 
-impl <'a, V> Iterator for IterMut<'a, V> {
+impl<'a, V> Iterator for IterMut<'a, V> {
     type Item = &'a mut V;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -115,23 +115,112 @@ impl<'a, V> Iterator for ReverseIterMut<'a, V> {
             result
         }
     }
-
 }
 
 pub struct Range<'a, V> {
-    phantom: PhantomData<&'a V>,
+    current: Option<&'a Node<V>>,
+    left: usize,
+}
+
+impl<'a, V> Iterator for Range<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().and_then(|node| {
+            self.left -= 1;
+            if self.left > 0 {
+                self.current = node.next.as_ref().map(|node| &**node);
+            }
+            node.value.as_ref()
+        })
+    }
 }
 
 pub struct ReverseRange<'a, V> {
+    current: *const Node<V>,
+    left: usize,
     phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseRange<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        self.left -= 1;
+
+        unsafe {
+            let result = (*self.current).value.as_ref();
+            let pre_ptr = (*self.current).prev.unwrap();
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null(),
+                Some(_) => {
+                    if self.left == 0 {
+                        self.current = std::ptr::null();
+                    } else {
+                        self.current = pre_ptr;
+                    }
+                }
+            }
+            result
+        }
+    }
 }
 
 pub struct RangeMut<'a, V> {
-    phantom: PhantomData<&'a V>,
+    current: Option<&'a mut Node<V>>,
+    left: usize,
+}
+
+impl<'a, V> Iterator for RangeMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().and_then(|node| {
+            self.left -= 1;
+            if self.left > 0 {
+                self.current = node.next.as_mut().map(|node| &mut **node);
+            }
+            node.value.as_mut()
+        })
+    }
 }
 
 pub struct ReverseRangeMut<'a, V> {
+    current: *mut Node<V>,
+    left: usize,
     phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        self.left -= 1;
+
+        unsafe {
+            let result = (*self.current).value.as_mut();
+            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null_mut(),
+                Some(_) => {
+                    if self.left == 0 {
+                        self.current = std::ptr::null_mut();
+                    } else {
+                        self.current = pre_ptr;
+                    }
+                }
+            }
+            result
+        }
+    }
 }
 
 impl<V: Debug> SkipList<V> {
@@ -419,12 +508,12 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Push a value at the front of skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_front(0);
     /// sk.push_front(1);
@@ -436,12 +525,12 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Remove the element at the front of skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_front(0);
     /// sk.push_front(1);
@@ -457,12 +546,12 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Push a value at the end of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_back(0);
     /// sk.push_back(1);
@@ -473,12 +562,12 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Remove the element at the end of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_back(0);
     /// sk.push_back(1);
@@ -491,21 +580,21 @@ impl<V: Debug> SkipList<V> {
             return None;
         }
 
-        Some(self.remove(self.length-1))
+        Some(self.remove(self.length - 1))
     }
 
     /// Returns an iterator of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_back(0);
     /// sk.push_back(1);
     /// sk.push_back(2);
-    /// 
+    ///
     /// let mut i = 0;
     /// for value in sk.iter() {
     ///     assert_eq!(value, &i);
@@ -518,19 +607,18 @@ impl<V: Debug> SkipList<V> {
         }
     }
 
-
     /// Returns an reverse iterator of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_front(0);
     /// sk.push_front(1);
     /// sk.push_front(2);
-    /// 
+    ///
     /// let mut i = 0;
     /// for value in sk.reverse_iter() {
     ///     assert_eq!(value, &i);
@@ -542,32 +630,31 @@ impl<V: Debug> SkipList<V> {
             return ReverseIter {
                 current: std::ptr::null(),
                 phantom: PhantomData,
-            }
+            };
         }
 
         ReverseIter {
-            current: self._get_ptr(self.length-1),
+            current: self._get_ptr(self.length - 1),
             phantom: PhantomData,
-
         }
     }
 
     /// Returns a mutable iterator of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_back(0);
     /// sk.push_back(1);
     /// sk.push_back(2);
-    /// 
+    ///
     /// for value in sk.iter_mut() {
     ///     *value *= 2;
     /// }
-    /// 
+    ///
     /// let mut i = 0;
     /// for value in sk.iter() {
     ///     assert_eq!(value, &i);
@@ -581,23 +668,23 @@ impl<V: Debug> SkipList<V> {
     }
 
     /// Returns a mutable reverse iterator of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// sk.push_back(0);
     /// sk.push_back(1);
     /// sk.push_back(2);
-    /// 
+    ///
     /// let mut i = 0;
     /// for value in sk.reverse_iter_mut() {
     ///     *value += i;
     ///     i += 1;
     /// }
-    /// 
+    ///
     /// for value in sk.iter() {
     ///     assert_eq!(value, &2);
     /// }
@@ -607,41 +694,248 @@ impl<V: Debug> SkipList<V> {
             return ReverseIterMut {
                 current: std::ptr::null_mut(),
                 phantom: PhantomData,
-            }
+            };
         }
 
         ReverseIterMut {
-            current: self._get_ptr(self.length-1) as *mut Node<V>,
+            current: self._get_ptr(self.length - 1) as *mut Node<V>,
             phantom: PhantomData,
         }
     }
 
+    fn _nomalize_range<R>(&self, range: R) -> (usize, usize)
+    where
+        R: RangeBounds<usize>,
+    {
+        let left = match range.start_bound() {
+            Bound::Unbounded => 0,
+            Bound::Included(i) => *i,
+            Bound::Excluded(i) => *i + 1,
+        };
+
+        let mut right = match range.end_bound() {
+            Bound::Unbounded => self.length,
+            Bound::Included(i) => *i + 1,
+            Bound::Excluded(i) => *i,
+        };
+
+        if right > self.length {
+            right = self.length;
+        }
+
+        if left > right {
+            panic!("Invalid range.")
+        }
+
+        (left, right)
+    }
+
+    /// Returns a range iterator of the skiplist
+    ///
+    /// # Panics
+    ///
+    /// Panics if start_bound is greater than end_bound
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    ///
+    /// let mut idx = 2;
+    /// for value in sk.range(2..7) {
+    ///     assert_eq!(value, &idx);
+    ///     idx += 1;
+    /// }
+    /// assert_eq!(idx, 7);
+    /// ```
     pub fn range<R>(&self, range: R) -> Range<'_, V>
     where
         R: RangeBounds<usize>,
     {
-        unimplemented!()
+        if self.length == 0 {
+            return Range {
+                current: None,
+                left: 0,
+            };
+        }
+
+        let (left, right) = self._nomalize_range(range);
+        if left == right {
+            return Range {
+                current: None,
+                left: 0,
+            };
+        }
+
+        let first = unsafe { &*self._get_ptr(left) };
+        Range {
+            current: Some(first),
+            left: right - left,
+        }
     }
 
+    /// Returns a reverse range of the skiplist
+    ///
+    /// # Panics
+    ///
+    /// Panics if start_bound is greater than end_bound
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    ///
+    /// let mut idx = 7;
+    /// for value in sk.reverse_range(..7) {
+    ///     idx -= 1;
+    ///     assert_eq!(value, &idx);
+    /// }
+    /// ```
     pub fn reverse_range<R>(&self, range: R) -> ReverseRange<'_, V>
     where
         R: RangeBounds<usize>,
     {
-        unimplemented!()
+        if self.length == 0 {
+            return ReverseRange {
+                current: std::ptr::null(),
+                left: 0,
+                phantom: PhantomData,
+            };
+        }
+
+        let (left, right) = self._nomalize_range(range);
+        if left == right {
+            return ReverseRange {
+                current: std::ptr::null(),
+                left: 0,
+                phantom: PhantomData,
+            };
+        }
+
+        // now right is surely greater than 0
+        let last = self._get_ptr(right - 1);
+        ReverseRange {
+            current: last,
+            left: right - left,
+            phantom: PhantomData,
+        }
     }
 
+    /// Returns a range iterator of the skiplist, in which elements is mutable
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if start_bound is greater than end_bound
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    /// 
+    /// let mut sk = SkipList::new();
+    /// 
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    /// 
+    /// for value in sk.range_mut(..) {
+    ///     *value *= 2;
+    /// }
+    /// 
+    /// for value in sk.range(1..7) {
+    ///     assert_eq!(*value % 2, 0);
+    /// }
+    /// ```
     pub fn range_mut<R>(&mut self, range: R) -> RangeMut<'_, V>
     where
         R: RangeBounds<usize>,
     {
-        unimplemented!()
+        if self.length == 0 {
+            return RangeMut {
+                current: None,
+                left: 0,
+            };
+        }
+
+        let (left, right) = self._nomalize_range(range);
+        if left == right {
+            return RangeMut {
+                current: None,
+                left: 0,
+            };
+        }
+
+        let first = unsafe { &mut *(self._get_ptr(left) as *mut _) };
+        RangeMut {
+            current: Some(first),
+            left: right - left,
+        }
     }
 
+    /// Returns a reverse range of the skiplist
+    ///
+    /// # Panics
+    ///
+    /// Panics if start_bound is greater than end_bound
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    ///
+    /// let mut a = 0;
+    /// for value in sk.reverse_range_mut(..8) {
+    ///     *value += a;
+    ///     a += 1;
+    /// }
+    /// 
+    /// for value in sk.range(..8) {
+    ///     assert_eq!(value, &7);
+    /// }
+    /// ```
     pub fn reverse_range_mut<R>(&mut self, range: R) -> ReverseRangeMut<'_, V>
     where
         R: RangeBounds<usize>,
     {
-        unimplemented!()
+        if self.length == 0 {
+            return ReverseRangeMut {
+                current: std::ptr::null_mut(),
+                left: 0,
+                phantom: PhantomData,
+            };
+        }
+
+        let (left, right) = self._nomalize_range(range);
+        if left == right {
+            return ReverseRangeMut {
+                current: std::ptr::null_mut(),
+                left: 0,
+                phantom: PhantomData,
+            };
+        }
+
+        // now right is surely greater than 0
+        let last = self._get_ptr(right - 1) as *mut _;
+        ReverseRangeMut {
+            current: last,
+            left: right - left,
+            phantom: PhantomData,
+        }
     }
 
     pub fn dedup(&mut self) {
@@ -734,5 +1028,38 @@ mod test {
 
         assert_eq!(sk.remove(0), "3");
         assert_eq!(sk.get(0), None);
+    }
+
+    #[test]
+    fn nomalize_range() {
+        let mut sk = SkipList::new();
+
+        for i in 0..10 {
+            sk.push_back(i);
+        }
+
+        let range = sk._nomalize_range(1..4);
+        assert_eq!(range, (1, 4));
+
+        let range = sk._nomalize_range(1..=4);
+        assert_eq!(range, (1, 5));
+
+        let range = sk._nomalize_range(1..);
+        assert_eq!(range, (1, 10));
+
+        let range = sk._nomalize_range(1..15);
+        assert_eq!(range, (1, 10));
+
+        let range = sk._nomalize_range(..4);
+        assert_eq!(range, (0, 4));
+
+        let range = sk._nomalize_range(4..4);
+        assert_eq!(range, (4, 4));
+
+        let range = sk._nomalize_range(..);
+        assert_eq!(range, (0, 10));
+
+        let range = sk._nomalize_range(10..15);
+        assert_eq!(range, (10, 10));
     }
 }
