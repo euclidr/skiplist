@@ -35,204 +35,6 @@ pub struct SkipList<V> {
     level_generator: LevelGenerator,
 }
 
-pub struct Iter<'a, V> {
-    current: Option<&'a Node<V>>,
-}
-
-impl<'a, V> Iterator for Iter<'a, V> {
-    type Item = &'a V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current.map(|node| {
-            self.current = node.next.as_ref().map(|node| &**node);
-            node.value.as_ref().unwrap()
-        })
-    }
-}
-
-pub struct IntoIter<V>(SkipList<V>);
-
-impl<V> Iterator for IntoIter<V> {
-    type Item = V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop_front()
-    }
-}
-
-pub struct ReverseIter<'a, V> {
-    current: *const Node<V>,
-    phantom: PhantomData<&'a V>,
-}
-
-impl<'a, V> Iterator for ReverseIter<'a, V> {
-    type Item = &'a V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current.is_null() {
-            return None;
-        }
-
-        unsafe {
-            let result = (*self.current).value.as_ref();
-            let pre_ptr = (*self.current).prev.unwrap() as *const Node<V>;
-            // The head node don't have a value, it can be a mark for iteration ending
-            match (*pre_ptr).value.as_ref() {
-                None => self.current = std::ptr::null(),
-                Some(_) => self.current = pre_ptr,
-            }
-            result
-        }
-    }
-}
-
-pub struct IterMut<'a, V> {
-    current: Option<&'a mut Node<V>>,
-}
-
-impl<'a, V> Iterator for IterMut<'a, V> {
-    type Item = &'a mut V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current.take().map(|node| {
-            self.current = node.next.as_mut().map(|node| &mut **node);
-            node.value.as_mut().unwrap()
-        })
-    }
-}
-
-pub struct ReverseIterMut<'a, V> {
-    current: *mut Node<V>,
-    phantom: PhantomData<&'a V>,
-}
-
-impl<'a, V> Iterator for ReverseIterMut<'a, V> {
-    type Item = &'a mut V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current.is_null() {
-            return None;
-        }
-
-        unsafe {
-            let result = (*self.current).value.as_mut();
-            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
-            // The head node don't have a value, it can be a mark for iteration ending
-            match (*pre_ptr).value.as_ref() {
-                None => self.current = std::ptr::null_mut(),
-                Some(_) => self.current = pre_ptr,
-            }
-            result
-        }
-    }
-}
-
-pub struct Range<'a, V> {
-    current: Option<&'a Node<V>>,
-    left: usize,
-}
-
-impl<'a, V> Iterator for Range<'a, V> {
-    type Item = &'a V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current.take().and_then(|node| {
-            self.left -= 1;
-            if self.left > 0 {
-                self.current = node.next.as_ref().map(|node| &**node);
-            }
-            node.value.as_ref()
-        })
-    }
-}
-
-pub struct ReverseRange<'a, V> {
-    current: *const Node<V>,
-    left: usize,
-    phantom: PhantomData<&'a V>,
-}
-
-impl<'a, V> Iterator for ReverseRange<'a, V> {
-    type Item = &'a V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current.is_null() {
-            return None;
-        }
-
-        self.left -= 1;
-
-        unsafe {
-            let result = (*self.current).value.as_ref();
-            let pre_ptr = (*self.current).prev.unwrap();
-            match (*pre_ptr).value.as_ref() {
-                None => self.current = std::ptr::null(),
-                Some(_) => {
-                    if self.left == 0 {
-                        self.current = std::ptr::null();
-                    } else {
-                        self.current = pre_ptr;
-                    }
-                }
-            }
-            result
-        }
-    }
-}
-
-pub struct RangeMut<'a, V> {
-    current: Option<&'a mut Node<V>>,
-    left: usize,
-}
-
-impl<'a, V> Iterator for RangeMut<'a, V> {
-    type Item = &'a mut V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current.take().and_then(|node| {
-            self.left -= 1;
-            if self.left > 0 {
-                self.current = node.next.as_mut().map(|node| &mut **node);
-            }
-            node.value.as_mut()
-        })
-    }
-}
-
-pub struct ReverseRangeMut<'a, V> {
-    current: *mut Node<V>,
-    left: usize,
-    phantom: PhantomData<&'a V>,
-}
-
-impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
-    type Item = &'a mut V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current.is_null() {
-            return None;
-        }
-
-        self.left -= 1;
-
-        unsafe {
-            let result = (*self.current).value.as_mut();
-            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
-            match (*pre_ptr).value.as_ref() {
-                None => self.current = std::ptr::null_mut(),
-                Some(_) => {
-                    if self.left == 0 {
-                        self.current = std::ptr::null_mut();
-                    } else {
-                        self.current = pre_ptr;
-                    }
-                }
-            }
-            result
-        }
-    }
-}
-
 impl<V> SkipList<V> {
     /// Create a skiplist with default LevelGenerator that
     /// each level's propability is 1/2 of its previous level,
@@ -1007,12 +809,12 @@ impl<V> IntoIterator for SkipList<V> {
     type IntoIter = IntoIter<V>;
 
     /// Returns a moved iterator of the skiplist
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::skiplist::SkipList;
-    /// 
+    ///
     /// let mut sk = SkipList::new();
     /// for i in 0..10 {
     ///     sk.push_back(i);
@@ -1025,6 +827,204 @@ impl<V> IntoIterator for SkipList<V> {
     /// ```
     fn into_iter(self) -> Self::IntoIter {
         IntoIter(self)
+    }
+}
+
+pub struct Iter<'a, V> {
+    current: Option<&'a Node<V>>,
+}
+
+impl<'a, V> Iterator for Iter<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.map(|node| {
+            self.current = node.next.as_ref().map(|node| &**node);
+            node.value.as_ref().unwrap()
+        })
+    }
+}
+
+pub struct IntoIter<V>(SkipList<V>);
+
+impl<V> Iterator for IntoIter<V> {
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop_front()
+    }
+}
+
+pub struct ReverseIter<'a, V> {
+    current: *const Node<V>,
+    phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseIter<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        unsafe {
+            let result = (*self.current).value.as_ref();
+            let pre_ptr = (*self.current).prev.unwrap() as *const Node<V>;
+            // The head node don't have a value, it can be a mark for iteration ending
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null(),
+                Some(_) => self.current = pre_ptr,
+            }
+            result
+        }
+    }
+}
+
+pub struct IterMut<'a, V> {
+    current: Option<&'a mut Node<V>>,
+}
+
+impl<'a, V> Iterator for IterMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().map(|node| {
+            self.current = node.next.as_mut().map(|node| &mut **node);
+            node.value.as_mut().unwrap()
+        })
+    }
+}
+
+pub struct ReverseIterMut<'a, V> {
+    current: *mut Node<V>,
+    phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseIterMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        unsafe {
+            let result = (*self.current).value.as_mut();
+            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            // The head node don't have a value, it can be a mark for iteration ending
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null_mut(),
+                Some(_) => self.current = pre_ptr,
+            }
+            result
+        }
+    }
+}
+
+pub struct Range<'a, V> {
+    current: Option<&'a Node<V>>,
+    left: usize,
+}
+
+impl<'a, V> Iterator for Range<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().and_then(|node| {
+            self.left -= 1;
+            if self.left > 0 {
+                self.current = node.next.as_ref().map(|node| &**node);
+            }
+            node.value.as_ref()
+        })
+    }
+}
+
+pub struct ReverseRange<'a, V> {
+    current: *const Node<V>,
+    left: usize,
+    phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseRange<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        self.left -= 1;
+
+        unsafe {
+            let result = (*self.current).value.as_ref();
+            let pre_ptr = (*self.current).prev.unwrap();
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null(),
+                Some(_) => {
+                    if self.left == 0 {
+                        self.current = std::ptr::null();
+                    } else {
+                        self.current = pre_ptr;
+                    }
+                }
+            }
+            result
+        }
+    }
+}
+
+pub struct RangeMut<'a, V> {
+    current: Option<&'a mut Node<V>>,
+    left: usize,
+}
+
+impl<'a, V> Iterator for RangeMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().and_then(|node| {
+            self.left -= 1;
+            if self.left > 0 {
+                self.current = node.next.as_mut().map(|node| &mut **node);
+            }
+            node.value.as_mut()
+        })
+    }
+}
+
+pub struct ReverseRangeMut<'a, V> {
+    current: *mut Node<V>,
+    left: usize,
+    phantom: PhantomData<&'a V>,
+}
+
+impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+
+        self.left -= 1;
+
+        unsafe {
+            let result = (*self.current).value.as_mut();
+            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            match (*pre_ptr).value.as_ref() {
+                None => self.current = std::ptr::null_mut(),
+                Some(_) => {
+                    if self.left == 0 {
+                        self.current = std::ptr::null_mut();
+                    } else {
+                        self.current = pre_ptr;
+                    }
+                }
+            }
+            result
+        }
     }
 }
 
