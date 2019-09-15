@@ -8,3 +8,10 @@ edition = "2018"
 
 [dependencies]
 rand = "0.7"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "skiplist_benchmark"
+harness = false
