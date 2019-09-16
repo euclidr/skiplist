@@ -1,5 +1,6 @@
 pub mod level_generator;
 pub mod skiplist;
+pub mod ordered_skiplist;
 
 #[cfg(test)]
 mod tests {
