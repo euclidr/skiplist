@@ -83,7 +83,7 @@ impl<V> SkipList<V> {
         let level = self.level_generator.choose();
         let mut node = Box::new(Node::new(Some(value), level + 1));
         let node_ptr: *mut _ = &mut *node;
-        if level >= self.head.links.len() {
+        while level >= self.head.links.len() {
             self.head.increase_level();
         }
 
