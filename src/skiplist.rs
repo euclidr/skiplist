@@ -4,35 +4,53 @@ use crate::level_generator::LevelGenerator;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 
-struct Node<V> {
-    value: Option<V>,
-    next: Option<Box<Node<V>>>,
-    prev: Option<*mut Node<V>>,
-    links: Vec<*mut Node<V>>,
-    links_len: Vec<usize>,
+pub(crate) struct Node<V> {
+    pub(crate) value: Option<V>,
+    pub(crate) next: Option<Box<Node<V>>>,
+    pub(crate) prev: *mut Node<V>,
+    pub(crate) links: Vec<*mut Node<V>>,
+    pub(crate) links_len: Vec<usize>,
+}
+
+impl<V> Default for Node<V> {
+    fn default() -> Self {
+        Self {
+            value: None,
+            next: None,
+            prev: std::ptr::null_mut(),
+            links: vec![],
+            links_len: vec![],
+        }
+    }
 }
 
 impl<V> Node<V> {
-    fn new(value: Option<V>, levels: usize) -> Self {
+    pub(crate) fn new(value: Option<V>, levels: usize) -> Self {
         Self {
             value,
             next: None,
-            prev: None,
+            prev: std::ptr::null_mut(),
             links: vec![std::ptr::null_mut(); levels],
             links_len: vec![0; levels],
         }
     }
 
-    fn increase_level(&mut self) {
+    pub(crate) fn increase_level(&mut self) {
         self.links.push(std::ptr::null_mut());
         self.links_len.push(0);
+    }
+
+    pub(crate) fn replace(&mut self, value: V) -> Option<V> {
+        let result = self.value.take();
+        self.value = Some(value);
+        result
     }
 }
 
 pub struct SkipList<V> {
-    head: Box<Node<V>>,
-    length: usize,
-    level_generator: LevelGenerator,
+    pub(crate) head: Box<Node<V>>,
+    pub(crate) length: usize,
+    pub(crate) level_generator: LevelGenerator,
 }
 
 impl<V> SkipList<V> {
@@ -138,12 +156,12 @@ impl<V> SkipList<V> {
             &mut *cur_ptr
         };
 
-        node.prev = Some(cur_ptr);
+        node.prev = cur_ptr;
 
         match pre_node.next.take() {
             None => pre_node.next = Some(node),
             Some(mut next) => {
-                next.prev = Some(node_ptr);
+                next.prev = node_ptr;
                 node.next = Some(next);
                 pre_node.next = Some(node);
             }
@@ -230,7 +248,7 @@ impl<V> SkipList<V> {
         match the_node.next.take() {
             None => (),
             Some(mut next_node) => {
-                next_node.prev = Some(cur_ptr);
+                next_node.prev = cur_ptr;
                 pre_node.next = Some(next_node);
             }
         };
@@ -292,8 +310,8 @@ impl<V> SkipList<V> {
             return None;
         }
 
-        let the_node = unsafe { &*self._get_ptr(index) };
-        Some(the_node.value.as_ref().unwrap())
+        let node = unsafe { &*self._get_ptr(index) };
+        node.value.as_ref()
     }
 
     /// Returns mutable value at the given index, or `None` if the index is out of bounds.
@@ -802,6 +820,11 @@ impl<V> SkipList<V> {
             }
         };
     }
+
+    /// Returns the length of the skiplist
+    pub fn len(&self) -> usize {
+        self.length
+    }
 }
 
 impl<V> IntoIterator for SkipList<V> {
@@ -870,7 +893,7 @@ impl<'a, V> Iterator for ReverseIter<'a, V> {
 
         unsafe {
             let result = (*self.current).value.as_ref();
-            let pre_ptr = (*self.current).prev.unwrap() as *const Node<V>;
+            let pre_ptr = (*self.current).prev as *const Node<V>;
             // The head node don't have a value, it can be a mark for iteration ending
             match (*pre_ptr).value.as_ref() {
                 None => self.current = std::ptr::null(),
@@ -911,7 +934,7 @@ impl<'a, V> Iterator for ReverseIterMut<'a, V> {
 
         unsafe {
             let result = (*self.current).value.as_mut();
-            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            let pre_ptr = (*self.current).prev;
             // The head node don't have a value, it can be a mark for iteration ending
             match (*pre_ptr).value.as_ref() {
                 None => self.current = std::ptr::null_mut(),
@@ -959,7 +982,7 @@ impl<'a, V> Iterator for ReverseRange<'a, V> {
 
         unsafe {
             let result = (*self.current).value.as_ref();
-            let pre_ptr = (*self.current).prev.unwrap();
+            let pre_ptr = (*self.current).prev;
             match (*pre_ptr).value.as_ref() {
                 None => self.current = std::ptr::null(),
                 Some(_) => {
@@ -1012,7 +1035,7 @@ impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
 
         unsafe {
             let result = (*self.current).value.as_mut();
-            let pre_ptr = (*self.current).prev.unwrap() as *mut Node<V>;
+            let pre_ptr = (*self.current).prev;
             match (*pre_ptr).value.as_ref() {
                 None => self.current = std::ptr::null_mut(),
                 Some(_) => {
