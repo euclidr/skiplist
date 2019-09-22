@@ -1,3 +1,4 @@
+use crate::skiplist::Iter;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 
@@ -27,12 +28,59 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         }
     }
 
-    fn dedup(&mut self) {
-        unimplemented!()
+    /// Removes duplicated items
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    ///
+    /// let mut sk = OrderedSkipList::new_duplicatable();
+    ///
+    /// sk.insert(0);
+    /// sk.insert(0);
+    /// sk.insert(1);
+    /// sk.insert(1);
+    /// sk.insert(1);
+    /// sk.insert(2);
+    ///
+    /// sk.dedup();
+    ///
+    /// let mut idx = 0;
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &idx);
+    ///     idx += 1;
+    /// }
+    /// ```
+    pub fn dedup(&mut self) {
+        self.sk.dedup();
     }
 
+    /// Returns length of the ordered_skiplist
     pub fn len(&self) -> usize {
         self.sk.len()
+    }
+
+    /// Returns an iterator for the ordered_skiplist
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    ///
+    /// let mut sk = OrderedSkipList::new();
+    /// sk.insert(0);
+    /// sk.insert(1);
+    /// sk.insert(2);
+    ///
+    /// let mut i = 0;
+    /// for value in sk.iter() {
+    ///     assert_eq!(value, &i);
+    ///     i += 1;
+    /// }
+    /// ```
+    pub fn iter(&self) -> Iter<V> {
+        self.sk.iter()
     }
 
     /// Returns value at the given index, or `None` if the index is out of bounds
@@ -68,7 +116,10 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// assert_eq!(sk.get_last(&1), Some((2, &1)));
     /// assert_eq!(sk.get_last(&3), None);
     /// ```
-    pub fn get_last(&self, q: &V) -> Option<(usize, &V)> {
+    pub fn get_last<Q: ?Sized>(&self, q: &Q) -> Option<(usize, &V)>
+    where V: Borrow<Q>,
+          Q: Ord
+    {
         if self.len() == 0 {
             return None;
         }
@@ -89,7 +140,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
             }
 
             let next_value = unsafe { (*cur_node.links[cur_level]).value.as_ref().unwrap() };
-            match next_value.cmp(q) {
+            match next_value.borrow().cmp(q) {
                 Ordering::Less => {
                     cur_ptr = cur_node.links[cur_level];
                     cur_index += cur_node.links_len[cur_level];
@@ -135,7 +186,10 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// assert_eq!(sk.get_first(&1), Some((1, &1)));
     /// assert_eq!(sk.get_first(&2), None);
     /// ```
-    pub fn get_first(&self, q: &V) -> Option<(usize, &V)> {
+    pub fn get_first<Q: ?Sized>(&self, q: &Q) -> Option<(usize, &V)>
+    where V: Borrow<Q>,
+          Q: Ord
+    {
         if self.len() == 0 {
             return None;
         }
@@ -157,7 +211,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
             }
 
             let next_value = unsafe { (*cur_node.links[cur_level]).value.as_ref().unwrap() };
-            match next_value.cmp(q) {
+            match next_value.borrow().cmp(q) {
                 Ordering::Less => {
                     cur_ptr = cur_node.links[cur_level];
                     cur_index += cur_node.links_len[cur_level];
@@ -308,16 +362,56 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         None
     }
 
-    fn remove_one<Q: ?Sized>(&mut self, q: &Q) -> bool
-    where
-        V: Borrow<Q>,
-    {
-        unimplemented!()
+    pub fn remove(&mut self, index: usize) -> V {
+        self.sk.remove(index)
     }
 
-    fn length(&self) -> usize {
-        unimplemented!()
+    pub fn remove_first<Q: ?Sized>(&mut self, q: &Q) -> Option<V>
+    where
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        let first = self.get_first(q);
+        match first {
+            None => None,
+            Some((index, _)) => {
+                Some(self.remove(index))
+            }
+        }
     }
+
+    pub fn remove_last<Q: ?Sized>(&mut self, q: &Q) -> Option<V>
+    where
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        let last = self.get_last(q);
+        match last {
+            None => None,
+            Some((index, _)) => {
+                Some(self.remove(index))
+            }
+        }
+    }
+
+    pub fn remove_value<Q: ?Sized>(&mut self, q: &Q) -> usize
+    where
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        let left = match self.get_first(q) {
+            None => return 0,
+            Some((index, _)) => index,
+        };
+
+        let right = match self.get_last(q) {
+            None => unreachable!(),
+            Some((index, _)) => index+1,
+        };
+
+        self.sk.remove_range(left..right)
+    }
+
 }
 
 #[cfg(test)]

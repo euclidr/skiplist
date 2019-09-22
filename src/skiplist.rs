@@ -258,6 +258,109 @@ impl<V> SkipList<V> {
         the_node.value.unwrap()
     }
 
+    /// Remove items in a range of indexes
+    /// 
+    /// # Panics
+    ///
+    /// Panics if start_bounds is greater than end_bounds
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// for i in 0..20 {
+    ///     sk.insert(i, i);
+    /// }
+    /// sk.remove_range(1..19);
+    /// assert_eq!(sk.get(0), Some(&0));
+    /// assert_eq!(sk.get(1), Some(&19));
+    /// ```
+    ///
+    pub fn remove_range<R>(&mut self, range: R) -> usize
+    where
+        R: RangeBounds<usize>,
+    {
+        let (left, right) = self._normalize_range(range);
+        if left == right {
+            return 0;
+        }
+
+        let (left, right) = (left+1, right+1);
+
+        let total_level = self.head.links.len();
+
+        let mut prev_ptrs = vec![std::ptr::null_mut();total_level];
+        let mut prev_indexes = vec![0;total_level];
+        let mut cur_level = total_level - 1;
+        let mut cur_ptr: *mut _ = &mut *self.head;
+        let mut cur_index = 0;
+
+        loop {
+            prev_ptrs[cur_level] = cur_ptr;
+            prev_indexes[cur_level] = cur_index;
+
+            let next_ptr = unsafe{ (*cur_ptr).links[cur_level] };
+            if next_ptr.is_null() {
+                if cur_level == 0 {
+                    break
+                }
+                cur_level -= 1;
+                continue
+            }
+
+            let cur_len = unsafe{ (*cur_ptr).links_len[cur_level] };
+            if cur_index + cur_len < left {
+                cur_ptr = next_ptr;
+                cur_index += cur_len;
+                continue
+            }
+
+            if cur_level == 0 {
+                break
+            }
+            cur_level -= 1;
+        }
+
+        for i in 0..total_level {
+            let prev_node = unsafe{ &mut *prev_ptrs[i] };
+            let mut next_index = prev_indexes[i] + prev_node.links_len[i];
+            let mut next_ptr = prev_node.links[i];
+            while !next_ptr.is_null() && next_index < right {
+                let node = unsafe{ &mut *next_ptr };
+                next_index += node.links_len[i];
+                next_ptr = node.links[i];
+            }
+
+            if next_ptr.is_null() {
+                prev_node.links[i] = std::ptr::null_mut();
+                prev_node.links_len[i] = 0;
+                continue
+            }
+
+            prev_node.links[i] = next_ptr;
+            prev_node.links_len[i] = (next_index - prev_indexes[i]) - (right - left);
+        }
+
+        let prev_node = unsafe{ &mut *prev_ptrs[0] };
+        let mut next_node = prev_node.next.take();
+        for _ in left..right {
+            next_node = next_node.and_then(|mut node| {
+                node.next.take()
+            });
+        }
+
+        prev_node.next = next_node;
+        match prev_node.next.as_mut() {
+            None => (),
+            Some(next) => next.prev = prev_ptrs[0],
+        }
+
+        self.length -= right - left;
+        right - left
+    }
+
     /// Returns pointer to the given index
     ///
     /// Panics
@@ -533,7 +636,7 @@ impl<V> SkipList<V> {
         }
     }
 
-    fn _nomalize_range<R>(&self, range: R) -> (usize, usize)
+    fn _normalize_range<R>(&self, range: R) -> (usize, usize)
     where
         R: RangeBounds<usize>,
     {
@@ -594,7 +697,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        let (left, right) = self._nomalize_range(range);
+        let (left, right) = self._normalize_range(range);
         if left == right {
             return Range {
                 current: None,
@@ -643,7 +746,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        let (left, right) = self._nomalize_range(range);
+        let (left, right) = self._normalize_range(range);
         if left == right {
             return ReverseRange {
                 current: std::ptr::null(),
@@ -697,7 +800,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        let (left, right) = self._nomalize_range(range);
+        let (left, right) = self._normalize_range(range);
         if left == right {
             return RangeMut {
                 current: None,
@@ -750,7 +853,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        let (left, right) = self._nomalize_range(range);
+        let (left, right) = self._normalize_range(range);
         if left == right {
             return ReverseRangeMut {
                 current: std::ptr::null_mut(),
@@ -1146,28 +1249,62 @@ mod test {
             sk.push_back(i);
         }
 
-        let range = sk._nomalize_range(1..4);
+        let range = sk._normalize_range(1..4);
         assert_eq!(range, (1, 4));
 
-        let range = sk._nomalize_range(1..=4);
+        let range = sk._normalize_range(1..=4);
         assert_eq!(range, (1, 5));
 
-        let range = sk._nomalize_range(1..);
+        let range = sk._normalize_range(1..);
         assert_eq!(range, (1, 10));
 
-        let range = sk._nomalize_range(1..15);
+        let range = sk._normalize_range(1..15);
         assert_eq!(range, (1, 10));
 
-        let range = sk._nomalize_range(..4);
+        let range = sk._normalize_range(..4);
         assert_eq!(range, (0, 4));
 
-        let range = sk._nomalize_range(4..4);
+        let range = sk._normalize_range(4..4);
         assert_eq!(range, (4, 4));
 
-        let range = sk._nomalize_range(..);
+        let range = sk._normalize_range(..);
         assert_eq!(range, (0, 10));
 
-        let range = sk._nomalize_range(10..15);
+        let range = sk._normalize_range(10..15);
         assert_eq!(range, (10, 10));
+    }
+
+    #[test]
+    fn remove_range() {
+        let mut sk = SkipList::new();
+
+        for i in 0..20 {
+            sk.push_back(i);
+        }
+
+        let n = sk.remove_range(7..7);
+        assert_eq!(n, 0);
+        assert_eq!(sk.len(), 20);
+
+        let n = sk.remove_range(7..8);
+        assert_eq!(n, 1);
+        assert_eq!(sk.len(), 19);
+        assert_eq!(sk.get(7), Some(&8));
+
+        let n = sk.remove_range(7..10);
+        assert_eq!(n, 3);
+        assert_eq!(sk.len(), 16);
+        assert_eq!(sk.get(7), Some(&11));
+
+        let n = sk.remove_range(7..);
+        assert_eq!(n, 9);
+        assert_eq!(sk.len(), 7);
+        assert_eq!(sk.get(7), None);
+        assert_eq!(sk.get(6), Some(&6));
+
+        let n = sk.remove_range(..2);
+        assert_eq!(n, 2);
+        assert_eq!(sk.len(), 5);
+        assert_eq!(sk.get(0), Some(&2));
     }
 }
