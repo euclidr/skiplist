@@ -362,10 +362,18 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         None
     }
 
+    /// Remove item at the index
+    /// 
+    /// # Panics
+    ///
+    /// Panics if index is out of bounds
+    /// 
     pub fn remove(&mut self, index: usize) -> V {
         self.sk.remove(index)
     }
 
+
+    /// Remove the first item equals to q, returns the removed value
     pub fn remove_first<Q: ?Sized>(&mut self, q: &Q) -> Option<V>
     where
         V: Borrow<Q>,
@@ -380,6 +388,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         }
     }
 
+    /// Remove the last item equals to q, returns the removed value
     pub fn remove_last<Q: ?Sized>(&mut self, q: &Q) -> Option<V>
     where
         V: Borrow<Q>,
@@ -394,6 +403,21 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         }
     }
 
+    /// Remove the all items equals to q, returns number of items removed
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    /// 
+    /// let mut sk = OrderedSkipList::new_duplicatable();
+    /// sk.insert(0);
+    /// sk.insert(0);
+    /// sk.insert(0);
+    /// 
+    /// sk.remove_value(&0);
+    /// assert_eq!(sk.len(), 0);
+    /// ```
     pub fn remove_value<Q: ?Sized>(&mut self, q: &Q) -> usize
     where
         V: Borrow<Q>,
@@ -475,5 +499,23 @@ mod test {
         assert_eq!(sk.get(2), Some(&1));
         assert_eq!(sk.get(3), Some(&1));
         assert_eq!(sk.get(4), Some(&2));
+    }
+
+    #[test]
+    fn remove_value() {
+        let mut sk = OrderedSkipList::new_duplicatable();
+        sk.insert(5);
+        sk.insert(5);
+        for i in 0..10 {
+            sk.insert(i);
+        }
+
+        assert_eq!(sk.len(), 12);
+        assert_eq!(sk.get_first(&5), Some((5, &5)));
+        assert_eq!(sk.get_last(&5), Some((7, &5)));
+
+        sk.remove_value(&5);
+        assert_eq!(sk.len(), 9);
+        assert_eq!(sk.get_first(&5), None);
     }
 }
