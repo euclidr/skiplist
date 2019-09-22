@@ -1,20 +1,18 @@
-use crate::skiplist::ReverseRange;
+use crate::skiplist::Iter;
 use crate::skiplist::Range;
 use crate::skiplist::ReverseIter;
-use crate::skiplist::Iter;
+use crate::skiplist::ReverseRange;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::ops::{Bound, RangeBounds};
 
 use crate::level_generator::LevelGenerator;
-use crate::skiplist::{SkipList, Node};
-
+use crate::skiplist::{Node, SkipList};
 
 pub struct OrderedSkipList<V: Ord> {
     sk: SkipList<V>,
     duplicatable: bool,
 }
-
 
 impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     pub fn new() -> Self {
@@ -66,7 +64,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     }
 
     /// Returns an iterator for the ordered_skiplist
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -88,7 +86,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     }
 
     /// Returns a reverse iterator for the ordered_skiplist
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -109,23 +107,22 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         self.sk.reverse_iter()
     }
 
-
     /// Returns a range iterator for the ordered_skiplist
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if start_bound is greater than end_bound
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::ordered_skiplist::OrderedSkipList;
-    /// 
+    ///
     /// let mut sk = OrderedSkipList::new();
     /// for i in 0..20 {
     ///     sk.insert(i);
     /// }
-    /// 
+    ///
     /// let mut i = 2;
     /// for value in sk.range(&2..&7) {
     ///     assert_eq!(value, &i);
@@ -133,7 +130,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// }
     /// assert_eq!(i, 7);
     /// ```
-    pub fn range<'a, 'b, R, Q: 'b +  ?Sized>(&'a self, range: R) -> Range<'a, V>
+    pub fn range<'a, 'b, R, Q: 'b + ?Sized>(&'a self, range: R) -> Range<'a, V>
     where
         R: RangeBounds<&'b Q>,
         V: Borrow<Q>,
@@ -159,21 +156,21 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     }
 
     /// Returns a range iterator for the ordered_skiplist
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if start_bound is greater than end_bound
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::ordered_skiplist::OrderedSkipList;
-    /// 
+    ///
     /// let mut sk = OrderedSkipList::new();
     /// for i in 0..20 {
     ///     sk.insert(i);
     /// }
-    /// 
+    ///
     /// let mut i = 6;
     /// for value in sk.reverse_range(&2..&7) {
     ///     assert_eq!(value, &i);
@@ -181,7 +178,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// }
     /// assert_eq!(i, 1);
     /// ```
-    pub fn reverse_range<'a, 'b, R, Q: 'b +  ?Sized>(&'a self, range: R) -> ReverseRange<'a, V>
+    pub fn reverse_range<'a, 'b, R, Q: 'b + ?Sized>(&'a self, range: R) -> ReverseRange<'a, V>
     where
         R: RangeBounds<&'b Q>,
         V: Borrow<Q>,
@@ -219,7 +216,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         let mut cur_ptr: *const _ = &*self.sk.head;
 
         loop {
-            let next_ptr = unsafe{ (*cur_ptr).links[cur_level] };
+            let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             if next_ptr.is_null() {
                 if cur_level == 0 {
                     break;
@@ -228,13 +225,13 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe{ (*next_ptr).value.as_ref().unwrap() };
+            let next_value = unsafe { (*next_ptr).value.as_ref().unwrap() };
             match q.cmp(next_value.borrow()) {
                 Ordering::Greater => {
                     cur_index += unsafe { (*cur_ptr).links_len[cur_level] };
                     cur_ptr = next_ptr;
                     continue;
-                },
+                }
                 _ => (),
             }
             if cur_level == 0 {
@@ -260,7 +257,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         let mut cur_ptr: *const _ = &*self.sk.head;
 
         loop {
-            let next_ptr = unsafe{ (*cur_ptr).links[cur_level] };
+            let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             if next_ptr.is_null() {
                 if cur_level == 0 {
                     break;
@@ -269,14 +266,14 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe{ (*next_ptr).value.as_ref().unwrap() };
+            let next_value = unsafe { (*next_ptr).value.as_ref().unwrap() };
             match q.cmp(next_value.borrow()) {
                 Ordering::Less => (),
                 _ => {
-                    cur_index += unsafe{ (*cur_ptr).links_len[cur_level] };
+                    cur_index += unsafe { (*cur_ptr).links_len[cur_level] };
                     cur_ptr = next_ptr;
                     continue;
-                },
+                }
             }
             if cur_level == 0 {
                 break;
@@ -321,8 +318,9 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// assert_eq!(sk.get_last(&3), None);
     /// ```
     pub fn get_last<Q: ?Sized>(&self, q: &Q) -> Option<(usize, &V)>
-    where V: Borrow<Q>,
-          Q: Ord
+    where
+        V: Borrow<Q>,
+        Q: Ord,
     {
         if self.len() == 0 {
             return None;
@@ -391,8 +389,9 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// assert_eq!(sk.get_first(&2), None);
     /// ```
     pub fn get_first<Q: ?Sized>(&self, q: &Q) -> Option<(usize, &V)>
-    where V: Borrow<Q>,
-          Q: Ord
+    where
+        V: Borrow<Q>,
+        Q: Ord,
     {
         if self.len() == 0 {
             return None;
@@ -567,15 +566,14 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     }
 
     /// Remove item at the index
-    /// 
+    ///
     /// # Panics
     ///
     /// Panics if index is out of bounds
-    /// 
+    ///
     pub fn remove(&mut self, index: usize) -> V {
         self.sk.remove(index)
     }
-
 
     /// Remove the first item equals to q, returns the removed value
     pub fn remove_first<Q: ?Sized>(&mut self, q: &Q) -> Option<V>
@@ -586,9 +584,7 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         let first = self.get_first(q);
         match first {
             None => None,
-            Some((index, _)) => {
-                Some(self.remove(index))
-            }
+            Some((index, _)) => Some(self.remove(index)),
         }
     }
 
@@ -601,24 +597,22 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         let last = self.get_last(q);
         match last {
             None => None,
-            Some((index, _)) => {
-                Some(self.remove(index))
-            }
+            Some((index, _)) => Some(self.remove(index)),
         }
     }
 
     /// Remove the all items equals to q, returns number of items removed
     ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use skiplist::ordered_skiplist::OrderedSkipList;
-    /// 
+    ///
     /// let mut sk = OrderedSkipList::new_duplicatable();
     /// sk.insert(0);
     /// sk.insert(0);
     /// sk.insert(0);
-    /// 
+    ///
     /// sk.remove_value(&0);
     /// assert_eq!(sk.len(), 0);
     /// ```
@@ -634,12 +628,11 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
 
         let right = match self.get_last(q) {
             None => unreachable!(),
-            Some((index, _)) => index+1,
+            Some((index, _)) => index + 1,
         };
 
         self.sk.remove_range(left..right)
     }
-
 }
 
 #[cfg(test)]
