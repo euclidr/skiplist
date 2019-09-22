@@ -1,6 +1,10 @@
+use crate::skiplist::ReverseRange;
+use crate::skiplist::Range;
+use crate::skiplist::ReverseIter;
 use crate::skiplist::Iter;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
+use std::ops::{Bound, RangeBounds};
 
 use crate::level_generator::LevelGenerator;
 use crate::skiplist::{SkipList, Node};
@@ -81,6 +85,46 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// ```
     pub fn iter(&self) -> Iter<V> {
         self.sk.iter()
+    }
+
+    /// Returns a reverse iterator for the ordered_skiplist
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    ///
+    /// let mut sk = OrderedSkipList::new();
+    /// sk.insert(0);
+    /// sk.insert(1);
+    /// sk.insert(2);
+    ///
+    /// let mut i = 2;
+    /// for value in sk.reverse_iter() {
+    ///     assert_eq!(value, &i);
+    ///     i -= 1;
+    /// }
+    /// ```
+    pub fn reverse_iter(&self) -> ReverseIter<V> {
+        self.sk.reverse_iter()
+    }
+
+    pub fn range<'a, R, Q: 'a +  ?Sized>(&'a self, range: R) -> Range<'a, V>
+    where
+        R: RangeBounds<&'a Q>,
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        unimplemented!()
+    }
+
+    pub fn reverse_range<'a, R, Q: 'a +  ?Sized>(&'a self, range: R) -> ReverseRange<'a, V>
+    where
+        R: RangeBounds<&'a Q>,
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        unimplemented!()
     }
 
     /// Returns value at the given index, or `None` if the index is out of bounds
