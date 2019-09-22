@@ -109,22 +109,182 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         self.sk.reverse_iter()
     }
 
-    pub fn range<'a, R, Q: 'a +  ?Sized>(&'a self, range: R) -> Range<'a, V>
+
+    /// Returns a range iterator for the ordered_skiplist
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if start_bound is greater than end_bound
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    /// 
+    /// let mut sk = OrderedSkipList::new();
+    /// for i in 0..20 {
+    ///     sk.insert(i);
+    /// }
+    /// 
+    /// let mut i = 2;
+    /// for value in sk.range(&2..&7) {
+    ///     assert_eq!(value, &i);
+    ///     i += 1;
+    /// }
+    /// assert_eq!(i, 7);
+    /// ```
+    pub fn range<'a, 'b, R, Q: 'b +  ?Sized>(&'a self, range: R) -> Range<'a, V>
     where
-        R: RangeBounds<&'a Q>,
+        R: RangeBounds<&'b Q>,
         V: Borrow<Q>,
         Q: Ord,
     {
-        unimplemented!()
+        if self.len() == 0 {
+            return self.sk.range(0..0);
+        }
+
+        let left = match range.start_bound() {
+            Bound::Unbounded => 0,
+            Bound::Included(q) => self._index_not_less(q),
+            Bound::Excluded(q) => self._index_not_less_or_equal(q),
+        };
+
+        let right = match range.end_bound() {
+            Bound::Unbounded => self.len(),
+            Bound::Included(q) => self._index_not_less_or_equal(q),
+            Bound::Excluded(q) => self._index_not_less(q),
+        };
+
+        self.sk.range(left..right)
     }
 
-    pub fn reverse_range<'a, R, Q: 'a +  ?Sized>(&'a self, range: R) -> ReverseRange<'a, V>
+    /// Returns a range iterator for the ordered_skiplist
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if start_bound is greater than end_bound
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    /// 
+    /// let mut sk = OrderedSkipList::new();
+    /// for i in 0..20 {
+    ///     sk.insert(i);
+    /// }
+    /// 
+    /// let mut i = 6;
+    /// for value in sk.reverse_range(&2..&7) {
+    ///     assert_eq!(value, &i);
+    ///     i -= 1;
+    /// }
+    /// assert_eq!(i, 1);
+    /// ```
+    pub fn reverse_range<'a, 'b, R, Q: 'b +  ?Sized>(&'a self, range: R) -> ReverseRange<'a, V>
     where
-        R: RangeBounds<&'a Q>,
+        R: RangeBounds<&'b Q>,
         V: Borrow<Q>,
         Q: Ord,
     {
-        unimplemented!()
+        if self.len() == 0 {
+            return self.sk.reverse_range(0..0);
+        }
+
+        let left = match range.start_bound() {
+            Bound::Unbounded => 0,
+            Bound::Included(q) => self._index_not_less(q),
+            Bound::Excluded(q) => self._index_not_less_or_equal(q),
+        };
+
+        let right = match range.end_bound() {
+            Bound::Unbounded => self.len(),
+            Bound::Included(q) => self._index_not_less_or_equal(q),
+            Bound::Excluded(q) => self._index_not_less(q),
+        };
+
+        self.sk.reverse_range(left..right)
+    }
+
+    fn _index_not_less<Q: ?Sized>(&self, q: &Q) -> usize
+    where
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        if self.len() == 0 {
+            panic!("Can't get index from empty skiplist.");
+        }
+        let mut cur_index = 0;
+        let mut cur_level = self.sk.head.links.len() - 1;
+        let mut cur_ptr: *const _ = &*self.sk.head;
+
+        loop {
+            let next_ptr = unsafe{ (*cur_ptr).links[cur_level] };
+            if next_ptr.is_null() {
+                if cur_level == 0 {
+                    break;
+                }
+                cur_level -= 1;
+                continue;
+            }
+
+            let next_value = unsafe{ (*next_ptr).value.as_ref().unwrap() };
+            match q.cmp(next_value.borrow()) {
+                Ordering::Greater => {
+                    cur_index += unsafe { (*cur_ptr).links_len[cur_level] };
+                    cur_ptr = next_ptr;
+                    continue;
+                },
+                _ => (),
+            }
+            if cur_level == 0 {
+                break;
+            }
+            cur_level -= 1;
+        }
+
+        // cur_index is prev node index plus 1, so cur_index is index of item not less than q
+        cur_index
+    }
+
+    fn _index_not_less_or_equal<Q: ?Sized>(&self, q: &Q) -> usize
+    where
+        V: Borrow<Q>,
+        Q: Ord,
+    {
+        if self.len() == 0 {
+            panic!("Can't get index from empty skiplist.");
+        }
+        let mut cur_index = 0;
+        let mut cur_level = self.sk.head.links.len() - 1;
+        let mut cur_ptr: *const _ = &*self.sk.head;
+
+        loop {
+            let next_ptr = unsafe{ (*cur_ptr).links[cur_level] };
+            if next_ptr.is_null() {
+                if cur_level == 0 {
+                    break;
+                }
+                cur_level -= 1;
+                continue;
+            }
+
+            let next_value = unsafe{ (*next_ptr).value.as_ref().unwrap() };
+            match q.cmp(next_value.borrow()) {
+                Ordering::Less => (),
+                _ => {
+                    cur_index += unsafe{ (*cur_ptr).links_len[cur_level] };
+                    cur_ptr = next_ptr;
+                    continue;
+                },
+            }
+            if cur_level == 0 {
+                break;
+            }
+            cur_level -= 1;
+        }
+
+        cur_index
     }
 
     /// Returns value at the given index, or `None` if the index is out of bounds
