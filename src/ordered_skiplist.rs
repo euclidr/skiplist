@@ -1,3 +1,4 @@
+use crate::skiplist::IntoIter;
 use crate::skiplist::Iter;
 use crate::skiplist::Range;
 use crate::skiplist::ReverseIter;
@@ -105,6 +106,28 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
     /// ```
     pub fn reverse_iter(&self) -> ReverseIter<V> {
         self.sk.reverse_iter()
+    }
+
+    /// Returns an owned iterator for the ordered_skiplist
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use skiplist::ordered_skiplist::OrderedSkipList;
+    /// 
+    /// let mut sk = OrderedSkipList::new();
+    /// sk.insert(0);
+    /// sk.insert(1);
+    /// sk.insert(2);
+    ///
+    /// let mut i = 0;
+    /// for value in sk.into_iter() {
+    ///     assert_eq!(value, i);
+    ///     i += 1;
+    /// }
+    /// ```
+    pub fn into_iter(self) -> IntoIter<V> {
+        self.sk.into_iter()
     }
 
     /// Returns a range iterator for the ordered_skiplist
