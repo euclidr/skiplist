@@ -15,7 +15,7 @@ pub struct OrderedSkipList<V: Ord> {
     duplicatable: bool,
 }
 
-impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
+impl<V: Ord> OrderedSkipList<V> {
     pub fn new() -> Self {
         Self::with_config(false, LevelGenerator::new())
     }
@@ -655,6 +655,10 @@ impl<V: Ord + std::fmt::Debug> OrderedSkipList<V> {
         };
 
         self.sk.remove_range(left..right)
+    }
+
+    pub fn first(&self) -> Option<&V> {
+        unimplemented!()
     }
 }
 

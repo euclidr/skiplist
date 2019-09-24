@@ -494,6 +494,88 @@ impl<V> SkipList<V> {
         self.insert(self.length, value)
     }
 
+    /// Get the first value of the skiplist
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// assert_eq!(sk.front(), Some(&0));
+    /// ```
+    pub fn front(&self) -> Option<&V> {
+        self.head.next.as_ref().and_then(|node| {
+            node.value.as_ref()
+        })
+    }
+
+    /// Get the last value of the skiplist
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// assert_eq!(sk.back(), Some(&1));
+    /// ```
+    pub fn back(&self) -> Option<&V> {
+        if self.length == 0 {
+            return None;
+        }
+        self.get(self.length-1)
+    }
+
+    /// Get the first mutable value of the skiplist
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// match sk.front_mut() {
+    ///     Some(v) => *v = 10,
+    ///     None => ()
+    /// };
+    /// assert_eq!(sk.front(), Some(&10));
+    /// ```
+    pub fn front_mut(&mut self) -> Option<&mut V> {
+        self.head.next.as_mut().and_then(|node| {
+            node.value.as_mut()
+        })
+    }
+
+    /// Get the last mutable value of the skiplist
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// sk.push_back(0);
+    /// sk.push_back(1);
+    /// match sk.back_mut() {
+    ///     Some(v) => *v = 10,
+    ///     None => ()
+    /// };
+    /// assert_eq!(sk.back(), Some(&10));
+    /// ```
+    pub fn back_mut(&mut self) -> Option<&mut V> {
+        if self.length == 0 {
+            return None;
+        }
+        self.get_mut(self.length-1)
+    }
+
     /// Remove the element at the end of the skiplist
     ///
     /// # Examples
