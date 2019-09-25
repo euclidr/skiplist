@@ -1010,6 +1010,123 @@ impl<V> SkipList<V> {
     pub fn len(&self) -> usize {
         self.length
     }
+
+    /// Returns graph that contains a range of elements of the skiplist
+    /// 
+    /// The graph is something like:
+    /// ```ignore
+    /// start: 1234, levels: 3, show_len: 4, total_len: 2000
+    /// ----------------> [+2] -------------------->
+    /// -------> [+1] --> [+2] -----------> [+4] -->
+    /// [+0] --> [+1] --> [+2] --> [+3] --> [+4] -->
+    /// values:
+    /// [+0]: aaa
+    /// [+1]: bbb
+    /// [+2]: ccc
+    /// [+3]: ddd
+    /// ```
+    pub fn explain<R>(&self, range: R) -> Result<String, &'static str>
+    where
+        V: std::fmt::Display,
+        R: RangeBounds<usize>,
+    {
+        const ELEMENT_EMPTY_PART1_1: &str = "-----";
+        const ELEMENT_EMPTY_PART1_2: &str = "------";
+        const ELEMENT_PART2_1: &str = "--> ";
+        const ELEMENT_PART2_2: &str = "----";
+        const MAX_SPAN: usize = 20;
+
+        let (left, right) = self._normalize_range(range);
+        let span = right - left;
+        if span > MAX_SPAN {
+            return Err("Range span is too big, the span should be smaller than 20");
+        }
+
+        let levels = self.head.links.len();
+        let mut result = format!("start: {}, levels: {}, show_len: {}, total_len: {}",
+                             left, levels, right-left, self.len());
+        let mut l_lines = vec![String::from("");levels];
+        if span > 0 {
+            let mut cur = unsafe{ &*self._get_ptr(left) };
+            for idx in 0..span {
+                let next = cur.next.as_ref();
+                for level in 0..levels {
+                    if cur.links.len() > level {
+                        l_lines[level].push_str(&format!("[+{}] ", idx));
+                    } else {
+                        if idx < 10 {
+                            l_lines[level].push_str(ELEMENT_EMPTY_PART1_1);
+                        } else {
+                            l_lines[level].push_str(ELEMENT_EMPTY_PART1_2);
+                        }
+                    }
+                    match next {
+                        None => l_lines[level].push_str(ELEMENT_PART2_1),
+                        Some(node) => {
+                            if node.links.len() > level {
+                                l_lines[level].push_str(ELEMENT_PART2_1);
+                            } else {
+                                l_lines[level].push_str(ELEMENT_PART2_2);
+                            }
+                        }
+                    }
+                }
+                match next {
+                    None => (),
+                    Some(next) => cur = &**next,
+                }
+            }
+        }
+
+        for level in (0..levels).rev() {
+            result.push_str("\n");
+            result.push_str(&l_lines[level]);
+        }
+
+        result.push_str("\nvalues:\n");
+
+        if span > 0 {
+            let mut cur = unsafe{ &*self._get_ptr(left) };
+            for idx in 0..span {
+                result.push_str(&format!("[+{}]: {}", idx, cur.value.as_ref().unwrap()));
+                result.push_str("\n");
+                match cur.next.as_ref() {
+                    None => (),
+                    Some(next) => cur = &**next,
+                }
+            }
+        }
+
+        Ok(result)
+    }
+}
+
+impl<V: std::fmt::Debug> std::fmt::Debug for SkipList<V> {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (i, value) in self.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:?}", value)?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl<V: std::fmt::Display> std::fmt::Display for SkipList<V> {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (i, value) in self.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", value)?;
+        }
+        write!(f, "]")
+    }
 }
 
 impl<V> IntoIterator for SkipList<V> {
@@ -1388,5 +1505,37 @@ mod test {
         assert_eq!(n, 2);
         assert_eq!(sk.len(), 5);
         assert_eq!(sk.get(0), Some(&2));
+    }
+
+    #[test]
+    fn explain() {
+        use rand::{Rng, SeedableRng};
+        use rand::rngs::StdRng;
+        use rand;
+
+        let mut sk = SkipList::<i32>::new();
+        let mut rng = StdRng::from_entropy();
+        for i in 0..500 {
+            sk.insert(rng.gen_range(0, i+1), rng.gen())
+        }
+
+        match sk.explain(0..10) {
+            Ok(text) => print!("{}", text),
+            Err(err) => print!("{}", err),
+        };
+
+        println!("");
+
+        match sk.explain(485..) {
+            Ok(text) => print!("{}", text),
+            Err(err) => print!("{}", err),
+        };
+
+        println!("");
+
+        match sk.explain(470..) {
+            Ok(text) => print!("{}", text),
+            Err(err) => print!("{}", err),
+        };
     }
 }

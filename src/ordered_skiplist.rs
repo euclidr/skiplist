@@ -108,28 +108,6 @@ impl<V: Ord> OrderedSkipList<V> {
         self.sk.reverse_iter()
     }
 
-    /// Returns an owned iterator for the ordered_skiplist
-    /// 
-    /// # Examples
-    /// 
-    /// ```
-    /// use skiplist::ordered_skiplist::OrderedSkipList;
-    /// 
-    /// let mut sk = OrderedSkipList::new();
-    /// sk.insert(0);
-    /// sk.insert(1);
-    /// sk.insert(2);
-    ///
-    /// let mut i = 0;
-    /// for value in sk.into_iter() {
-    ///     assert_eq!(value, i);
-    ///     i += 1;
-    /// }
-    /// ```
-    pub fn into_iter(self) -> IntoIter<V> {
-        self.sk.into_iter()
-    }
-
     /// Returns a range iterator for the ordered_skiplist
     ///
     /// # Panics
@@ -657,8 +635,64 @@ impl<V: Ord> OrderedSkipList<V> {
         self.sk.remove_range(left..right)
     }
 
-    pub fn first(&self) -> Option<&V> {
-        unimplemented!()
+    /// Returns the first value in the skiplist
+    /// same as [`SkipList::front`]: trait.SkipList.html#method.front
+    pub fn front(&self) -> Option<&V> {
+        self.sk.front()
+    }
+
+    /// Returns the last value in the skiplist
+    /// same as [`SkipList::back`]: trait.SkipList.html#method.back
+    pub fn back(&self) -> Option<&V> {
+        self.sk.back()
+    }
+
+    /// Pop the first value in the skiplist
+    /// same as [`SkipList::pop_front`]: trait.SkipList.html#method.pop_front
+    pub fn pop_front(&mut self) -> Option<V> {
+        self.sk.pop_front()
+    }
+
+    /// Pop the last value in the skiplist
+    /// same as [`SkipList::pop_back`]: trait.SkipList.html#method.pop_back
+    pub fn pop_back(&mut self) -> Option<V> {
+        self.sk.pop_back()
+    }
+
+    /// Returns graph that contains a range of elements of the skiplist
+    /// same as [`SkipList::explain`]: trait.SkipList.html#method.explain
+    pub fn explain<R>(&self, range: R) -> Result<String, &'static str>
+    where
+        V: std::fmt::Display,
+        R: RangeBounds<usize>,
+    {
+        self.sk.explain(range)
+    }
+}
+
+impl<V: Ord> IntoIterator for OrderedSkipList<V> {
+    type Item = V;
+    type IntoIter = IntoIter<V>;
+
+    /// Returns a moved iterator of the skiplist
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skiplist::SkipList;
+    ///
+    /// let mut sk = SkipList::new();
+    /// for i in 0..10 {
+    ///     sk.push_back(i);
+    /// }
+    /// let mut idx = 0;
+    /// for value in sk.into_iter() {
+    ///     assert_eq!(value, idx);
+    ///     idx += 1;
+    /// }
+    /// ```
+    fn into_iter(self) -> Self::IntoIter {
+        self.sk.into_iter()
     }
 }
 
