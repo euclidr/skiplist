@@ -11,7 +11,7 @@ use crate::level_generator::LevelGenerator;
 use crate::skiplist::{Node, SkipList};
 
 pub struct OrderedSkipList<V: Ord> {
-    sk: SkipList<V>,
+    pub(crate) sk: SkipList<V>,
     duplicatable: bool,
 }
 

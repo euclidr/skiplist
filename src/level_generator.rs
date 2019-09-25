@@ -70,6 +70,12 @@ impl LevelGenerator {
     }
 }
 
+impl Clone for LevelGenerator {
+    fn clone(&self) -> Self {
+        Self::with_config(self.p, self.levels)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

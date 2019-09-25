@@ -155,8 +155,68 @@ impl<V: Ord + Display> SkipSet<V> {
         self.sk.range(range)
     }
 
-    fn into_diff(self, other: Self) -> Self {
-        unimplemented!()
+
+    /// Return a difference sets
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    /// 
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    /// 
+    /// let ss = ss1.into_diff(ss2);
+    /// assert_eq!(ss.cardinal(), 2);
+    /// assert_eq!(ss.contains(&0), true);
+    /// assert_eq!(ss.contains(&10), true);
+    /// ```
+    pub fn into_diff(self, other: Self) -> Self {
+        let lg = self.sk.sk.level_generator.clone();
+        let mut iter_a = self.into_iter();
+        let mut iter_b = other.into_iter();
+        let mut a = iter_a.next();
+        let mut b = iter_b.next();
+        let mut arr = vec![];
+        while a.is_some() || b.is_some() {
+            if a.is_none() {
+                arr.push(b.take().expect("b must not be none"));
+                b = iter_b.next();
+                continue
+            }
+
+            if b.is_none() {
+                arr.push(a.take().expect("a must not be none"));
+                a = iter_a.next();
+                continue;
+            }
+
+            match a.cmp(&b) {
+                Ordering::Equal => {
+                    a = iter_a.next();
+                    b = iter_b.next();
+                },
+                Ordering::Less => {
+                    arr.push(a.take().expect("a must not be none"));
+                    a = iter_a.next();
+                },
+                Ordering::Greater => {
+                    arr.push(b.take().expect("b must not be none"));
+                    b = iter_b.next();
+                }
+            }
+        }
+
+        let mut result = Self::with_level_generator(lg);
+        while !arr.is_empty() {
+            result.add(arr.pop().expect("value must exist"));
+        }
+
+        result
     }
 
     fn into_inter(self, other: Self) -> Self {
