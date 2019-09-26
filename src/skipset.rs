@@ -169,12 +169,12 @@ impl<V: Ord + Display> SkipSet<V> {
     ///     ss2.add(i+1);
     /// }
     ///
-    /// let ss = ss1.into_diff(ss2);
+    /// let ss = ss1.into_symmetric_difference(ss2);
     /// assert_eq!(ss.cardinal(), 2);
     /// assert_eq!(ss.contains(&0), true);
     /// assert_eq!(ss.contains(&10), true);
     /// ```
-    pub fn into_diff(self, other: Self) -> Self {
+    pub fn into_symmetric_difference(self, other: Self) -> Self {
         let lg = self.sk.sk.level_generator.clone();
         let mut iter_a = self.into_iter();
         let mut iter_b = other.into_iter();
@@ -218,13 +218,26 @@ impl<V: Ord + Display> SkipSet<V> {
         result
     }
 
-    fn into_inter(self, other: Self) -> Self {
+    fn into_difference(self, other: Self) -> Self {
+        unimplemented!()
+    }
+
+    fn into_intersection(self, other: Self) -> Self {
         unimplemented!()
     }
 
     fn into_union(self, other: Self) -> Self {
         unimplemented!()
     }
+
+    fn is_subset(&self, other: &Self) -> bool {
+        unimplemented!()
+    }
+
+    fn is_superset(&self, other: &Self) -> bool {
+        unimplemented!()
+    }
+
 }
 
 impl<V: Ord> IntoIterator for SkipSet<V> {
@@ -254,11 +267,15 @@ impl<V: Ord> IntoIterator for SkipSet<V> {
 }
 
 impl<K: Ord + Copy> SkipSet<K> {
-    fn diff(&self, other: &Self) -> Self {
+    fn symmetric_difference(&self, other: &Self) -> Self {
         unimplemented!()
     }
 
-    fn inter(&self, other: &Self) -> Self {
+    fn difference(&self, other: &Self) -> Self {
+        unimplemented!()
+    }
+
+    fn intersection(&self, other: &Self) -> Self {
         unimplemented!()
     }
 
