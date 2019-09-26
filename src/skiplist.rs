@@ -116,7 +116,7 @@ impl<V> SkipList<V> {
         let actual_index = index + 1;
 
         loop {
-            // Safty: cur_ptr will never be null and always valid.
+            // Safety: cur_ptr will never be null and always valid.
             let cur = unsafe { &mut *cur_ptr };
             let next_ptr = cur.links[cur_level];
             if next_ptr.is_null() {
@@ -157,7 +157,7 @@ impl<V> SkipList<V> {
             cur_level -= 1;
         }
 
-        // Safty: cur_ptr will never be null and always valid.
+        // Safety: cur_ptr will never be null and always valid.
         let pre_node = unsafe { &mut *cur_ptr };
 
         node.prev = cur_ptr;
@@ -203,7 +203,7 @@ impl<V> SkipList<V> {
         let mut cur_ptr: *mut _ = &mut *self.head;
 
         loop {
-            // Safty: cur_ptr will never be null and always valid.
+            // Safety: cur_ptr will never be null and always valid.
             let cur = unsafe { &mut *cur_ptr };
             let next_ptr = cur.links[cur_level];
             if next_ptr.is_null() {
@@ -214,7 +214,7 @@ impl<V> SkipList<V> {
                 continue;
             }
 
-            // Safty: next_ptr won't be null when the program run to here and always valid.
+            // Safety: next_ptr won't be null when the program run to here and always valid.
             let next = unsafe { &*next_ptr };
             let next_index = cur_index + cur.links_len[cur_level];
             let next_links_len = next.links_len[cur_level];
@@ -248,7 +248,7 @@ impl<V> SkipList<V> {
             cur_level -= 1;
         }
 
-        // Safty: cur_ptr will never be null and always valid.
+        // Safety: cur_ptr will never be null and always valid.
         let pre_node = unsafe { &mut *cur_ptr };
         let mut the_node = pre_node
             .next
@@ -313,7 +313,7 @@ impl<V> SkipList<V> {
             prev_ptrs[cur_level] = cur_ptr;
             prev_indexes[cur_level] = cur_index;
 
-            // Safty: cur_ptr will never be null and always valid.
+            // Safety: cur_ptr will never be null and always valid.
             let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             if next_ptr.is_null() {
                 if cur_level == 0 {
@@ -323,7 +323,7 @@ impl<V> SkipList<V> {
                 continue;
             }
 
-            // Safty: cur_ptr will never be null and always valid.
+            // Safety: cur_ptr will never be null and always valid.
             let cur_len = unsafe { (*cur_ptr).links_len[cur_level] };
             if cur_index + cur_len < left {
                 cur_ptr = next_ptr;
@@ -338,13 +338,13 @@ impl<V> SkipList<V> {
         }
 
         for i in 0..total_level {
-            // Safty: prev_ptrs[i] is copy from cur_ptr above, will never be null
+            // Safety: prev_ptrs[i] is copy from cur_ptr above, will never be null
             // and always valid.
             let prev_node = unsafe { &mut *prev_ptrs[i] };
             let mut next_index = prev_indexes[i] + prev_node.links_len[i];
             let mut next_ptr = prev_node.links[i];
             while !next_ptr.is_null() && next_index < right {
-                // Safty: next_ptr is checked that it won't be null
+                // Safety: next_ptr is checked that it won't be null
                 let node = unsafe { &mut *next_ptr };
                 next_index += node.links_len[i];
                 next_ptr = node.links[i];
@@ -360,7 +360,7 @@ impl<V> SkipList<V> {
             prev_node.links_len[i] = (next_index - prev_indexes[i]) - (right - left);
         }
 
-        // Safty: prev_ptrs[i] is copy from cur_ptr above, will never be null
+        // Safety: prev_ptrs[i] is copy from cur_ptr above, will never be null
         // and always valid.
         let prev_node = unsafe { &mut *prev_ptrs[0] };
         let mut next_node = prev_node.next.take();
@@ -394,7 +394,7 @@ impl<V> SkipList<V> {
         let mut cur_ptr: *const _ = &*self.head;
         let mut cur_index = 0;
 
-        // Safty: cur_ptr will never be null and always valid.
+        // Safety: cur_ptr will never be null and always valid.
         unsafe {
             while actual_index != cur_index {
                 let next_index = cur_index + (*cur_ptr).links_len[cur_level];
@@ -431,7 +431,7 @@ impl<V> SkipList<V> {
             return None;
         }
 
-        // Safty: index will always be valid and _get_ptr will return a valid pointer.
+        // Safety: index will always be valid and _get_ptr will return a valid pointer.
         let node = unsafe { &*self._get_ptr(index) };
         node.value.as_ref()
     }
@@ -455,7 +455,7 @@ impl<V> SkipList<V> {
             return None;
         }
 
-        // Safty: index will always be valid and _get_ptr will return a valid pointer.
+        // Safety: index will always be valid and _get_ptr will return a valid pointer.
         let the_node = unsafe { &mut *(self._get_ptr(index) as *mut Node<V>) };
         Some(
             the_node
@@ -808,7 +808,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        // Safty: left is a valid index and _get_ptr will return a valid pointer.
+        // Safety: left is a valid index and _get_ptr will return a valid pointer.
         let first = unsafe { &*self._get_ptr(left) };
         Range {
             current: Some(first),
@@ -912,7 +912,7 @@ impl<V> SkipList<V> {
             };
         }
 
-        // Safty: left is a valid index and _get_ptr will return a valid pointer.
+        // Safety: left is a valid index and _get_ptr will return a valid pointer.
         let first = unsafe { &mut *(self._get_ptr(left) as *mut _) };
         RangeMut {
             current: Some(first),
@@ -1017,7 +1017,7 @@ impl<V> SkipList<V> {
         let mut cur_ptr = &**node as *const Node<V>;
 
         while !cur_ptr.is_null() {
-            // Safty: cur_ptr will not be null
+            // Safety: cur_ptr will not be null
             unsafe {
                 match (*cur_ptr).next.as_ref() {
                     None => cur_ptr = std::ptr::null(),
@@ -1081,7 +1081,7 @@ impl<V> SkipList<V> {
         );
         let mut l_lines = vec![String::from(""); levels];
         if span > 0 {
-            // Safty: left is a valid index, _get_ptr will return a valid pointer
+            // Safety: left is a valid index, _get_ptr will return a valid pointer
             let mut cur = unsafe { &*self._get_ptr(left) };
             for idx in 0..span {
                 let next = cur.next.as_ref();
@@ -1121,7 +1121,7 @@ impl<V> SkipList<V> {
         result.push_str("\nvalues:\n");
 
         if span > 0 {
-            // Safty: left is a valid index, _get_ptr will return a valid pointer
+            // Safety: left is a valid index, _get_ptr will return a valid pointer
             let mut cur = unsafe { &*self._get_ptr(left) };
             for idx in 0..span {
                 result.push_str(&format!(
@@ -1237,7 +1237,7 @@ impl<'a, V> Iterator for ReverseIter<'a, V> {
             return None;
         }
 
-        // Safty: `current` won't be null when the program run to here
+        // Safety: `current` won't be null when the program run to here
         // `current` is a normal node, every normal node has a prev_node
         unsafe {
             let result = (*self.current).value.as_ref();
@@ -1283,7 +1283,7 @@ impl<'a, V> Iterator for ReverseIterMut<'a, V> {
             return None;
         }
 
-        // Safty: `current` won't be null when the program run to here
+        // Safety: `current` won't be null when the program run to here
         // `current` is a normal node, every normal node has a prev_node
         unsafe {
             let result = (*self.current).value.as_mut();
@@ -1339,7 +1339,7 @@ impl<'a, V> Iterator for ReverseRange<'a, V> {
 
         self.left -= 1;
 
-        // Safty: `current` won't be null when the program run to here
+        // Safety: `current` won't be null when the program run to here
         // `current` is a normal node, every normal node has a prev_node
         unsafe {
             let result = (*self.current).value.as_ref();
@@ -1397,7 +1397,7 @@ impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
 
         self.left -= 1;
 
-        // Safty: `current` won't be null when the program run to here
+        // Safety: `current` won't be null when the program run to here
         // `current` is a normal node, every normal node has a prev_node
         unsafe {
             let result = (*self.current).value.as_mut();

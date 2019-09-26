@@ -155,21 +155,20 @@ impl<V: Ord + Display> SkipSet<V> {
         self.sk.range(range)
     }
 
-
     /// Return a difference sets
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// use skiplist::skipset::SkipSet;
-    /// 
+    ///
     /// let mut ss1 = SkipSet::new();
     /// let mut ss2 = SkipSet::new();
     /// for i in 0..10 {
     ///     ss1.add(i);
     ///     ss2.add(i+1);
     /// }
-    /// 
+    ///
     /// let ss = ss1.into_diff(ss2);
     /// assert_eq!(ss.cardinal(), 2);
     /// assert_eq!(ss.contains(&0), true);
@@ -186,7 +185,7 @@ impl<V: Ord + Display> SkipSet<V> {
             if a.is_none() {
                 arr.push(b.take().expect("b must not be none"));
                 b = iter_b.next();
-                continue
+                continue;
             }
 
             if b.is_none() {
@@ -199,11 +198,11 @@ impl<V: Ord + Display> SkipSet<V> {
                 Ordering::Equal => {
                     a = iter_a.next();
                     b = iter_b.next();
-                },
+                }
                 Ordering::Less => {
                     arr.push(a.take().expect("a must not be none"));
                     a = iter_a.next();
-                },
+                }
                 Ordering::Greater => {
                     arr.push(b.take().expect("b must not be none"));
                     b = iter_b.next();

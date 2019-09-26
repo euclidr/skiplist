@@ -217,6 +217,7 @@ impl<V: Ord> OrderedSkipList<V> {
         let mut cur_ptr: *const _ = &*self.sk.head;
 
         loop {
+            // Safety: cur_ptr will never be null and always valid.
             let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             if next_ptr.is_null() {
                 if cur_level == 0 {
@@ -226,9 +227,16 @@ impl<V: Ord> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe { (*next_ptr).value.as_ref().unwrap() };
+            // Safety: next_ptr will not be null when the program run to here.
+            let next_value = unsafe {
+                (*next_ptr)
+                    .value
+                    .as_ref()
+                    .expect("there must be value in a normal node")
+            };
             match q.cmp(next_value.borrow()) {
                 Ordering::Greater => {
+                    // Safety: cur_ptr will never be null and always valid.
                     cur_index += unsafe { (*cur_ptr).links_len[cur_level] };
                     cur_ptr = next_ptr;
                     continue;
@@ -258,6 +266,7 @@ impl<V: Ord> OrderedSkipList<V> {
         let mut cur_ptr: *const _ = &*self.sk.head;
 
         loop {
+            // Safety: cur_ptr will never be null and always valid.
             let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             if next_ptr.is_null() {
                 if cur_level == 0 {
@@ -267,10 +276,17 @@ impl<V: Ord> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe { (*next_ptr).value.as_ref().unwrap() };
+            // Safety: next_ptr will not be null when the program run to here.
+            let next_value = unsafe {
+                (*next_ptr)
+                    .value
+                    .as_ref()
+                    .expect("there must be value in a normal node")
+            };
             match q.cmp(next_value.borrow()) {
                 Ordering::Less => (),
                 _ => {
+                    // Safety: cur_ptr will never be null and always valid.
                     cur_index += unsafe { (*cur_ptr).links_len[cur_level] };
                     cur_ptr = next_ptr;
                     continue;
@@ -333,8 +349,10 @@ impl<V: Ord> OrderedSkipList<V> {
         let mut has_equal = false;
 
         loop {
+            // Safety: cur_ptr will never be null and always valid.
             let cur_node = unsafe { &*cur_ptr };
-            if cur_node.links[cur_level].is_null() {
+            let next_ptr = cur_node.links[cur_level];
+            if next_ptr.is_null() {
                 if cur_level == 0 {
                     break;
                 }
@@ -342,10 +360,16 @@ impl<V: Ord> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe { (*cur_node.links[cur_level]).value.as_ref().unwrap() };
+            // Safety: next_ptr will not be null when the program run to here
+            let next_value = unsafe {
+                (*next_ptr)
+                    .value
+                    .as_ref()
+                    .expect("there must be value in a normal node")
+            };
             match next_value.borrow().cmp(q) {
                 Ordering::Less => {
-                    cur_ptr = cur_node.links[cur_level];
+                    cur_ptr = next_ptr;
                     cur_index += cur_node.links_len[cur_level];
                     continue;
                 }
@@ -368,6 +392,7 @@ impl<V: Ord> OrderedSkipList<V> {
             return None;
         }
 
+        // Safety: cur_ptr will never be null and always valid.
         let v = unsafe { (*cur_ptr).value.as_ref() };
 
         // cur_index is node index added by 1
@@ -405,6 +430,7 @@ impl<V: Ord> OrderedSkipList<V> {
         let mut has_equal = false;
 
         loop {
+            // Safety: cur_ptr will never be null and always valid.
             let cur_node = unsafe { &*cur_ptr };
             if cur_node.links[cur_level].is_null() {
                 if cur_level == 0 {
@@ -414,7 +440,13 @@ impl<V: Ord> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe { (*cur_node.links[cur_level]).value.as_ref().unwrap() };
+            // Safety: next_ptr will not be null when the program run to here
+            let next_value = unsafe {
+                (*cur_node.links[cur_level])
+                    .value
+                    .as_ref()
+                    .expect("there must be value in a normal node")
+            };
             match next_value.borrow().cmp(q) {
                 Ordering::Less => {
                     cur_ptr = cur_node.links[cur_level];
@@ -437,6 +469,7 @@ impl<V: Ord> OrderedSkipList<V> {
             return None;
         }
 
+        // Safety: cur_ptr will never be null and always valid.
         let v = unsafe {
             (*cur_ptr)
                 .next
@@ -486,6 +519,7 @@ impl<V: Ord> OrderedSkipList<V> {
             prev_ptrs[cur_level] = cur_ptr;
             prev_indexs[cur_level] = cur_index;
 
+            // Safety: cur_ptr will never be null and always valid.
             let next_ptr = unsafe { (*cur_ptr).links[cur_level] };
             let cur_len = unsafe { (*cur_ptr).links_len[cur_level] };
             if next_ptr.is_null() {
@@ -496,7 +530,13 @@ impl<V: Ord> OrderedSkipList<V> {
                 continue;
             }
 
-            let next_value = unsafe { (*next_ptr).value.as_ref().unwrap() };
+            // Safety: next_ptr will not be null when the program run to here.
+            let next_value = unsafe {
+                (*next_ptr)
+                    .value
+                    .as_ref()
+                    .expect("there must be value in a normal node")
+            };
             match next_value.cmp(&value) {
                 Ordering::Less => {
                     cur_ptr = next_ptr;
@@ -517,6 +557,7 @@ impl<V: Ord> OrderedSkipList<V> {
 
         // if duplicated and not duplicatable, replace the old one
         if has_equal && !self.duplicatable {
+            // Safety: cur_ptr will never be null and always valid.
             return unsafe {
                 (*cur_ptr)
                     .next
@@ -530,6 +571,8 @@ impl<V: Ord> OrderedSkipList<V> {
 
         // modify links
         for i in 0..total_level {
+            // Safety: prev_ptrs[i] is copy from cur_ptr above, will never be null
+            // and always valid.
             let prev = unsafe { &mut *prev_ptrs[i] };
             if prev.links[i].is_null() && i > level {
                 continue;
@@ -553,6 +596,7 @@ impl<V: Ord> OrderedSkipList<V> {
         }
 
         // insert the node
+        // Safety: cur_ptr will never be null and always valid.
         let prev = unsafe { &mut *cur_ptr };
         node.next = prev.next.take().map(|mut next| {
             next.prev = node_ptr;
