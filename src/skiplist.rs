@@ -53,6 +53,9 @@ pub struct SkipList<V> {
     pub(crate) level_generator: LevelGenerator,
 }
 
+unsafe impl<V: Sync> Sync for SkipList<V> {}
+unsafe impl<V: Send> Send for SkipList<V> {}
+
 impl<V> SkipList<V> {
     /// Create a skiplist with default LevelGenerator that
     /// each level's propability is 1/2 of its previous level,
@@ -112,49 +115,48 @@ impl<V> SkipList<V> {
         // as the first node while inserting, so the index should be added by 1.
         let actual_index = index + 1;
 
-        let pre_node = unsafe {
-            loop {
-                let next_ptr = (*cur_ptr).links[cur_level];
-                if next_ptr.is_null() {
-                    if cur_level <= level {
-                        (*cur_ptr).links[cur_level] = node_ptr;
-                        (*cur_ptr).links_len[cur_level] = actual_index - cur_index;
-                    }
-                    if cur_level == 0 {
-                        break;
-                    }
-                    cur_level -= 1;
-                    continue;
-                }
-
-                let next_index = cur_index + (*cur_ptr).links_len[cur_level];
-                if next_index < actual_index {
-                    // move forward in the same level
-                    cur_ptr = (*cur_ptr).links[cur_level];
-                    cur_index = next_index;
-                    continue;
-                }
-
+        loop {
+            let cur = unsafe{ &mut *cur_ptr };
+            let next_ptr = cur.links[cur_level];
+            if next_ptr.is_null() {
                 if cur_level <= level {
-                    // insert link between current node and the next node
-                    node.links_len[cur_level] = next_index + 1 - actual_index;
-                    (*cur_ptr).links_len[cur_level] = actual_index - cur_index;
-                    node.links[cur_level] = (*cur_ptr).links[cur_level];
-                    (*cur_ptr).links[cur_level] = node_ptr;
-                } else {
-                    // increase link_len between current node and the next node
-                    (*cur_ptr).links_len[cur_level] += 1;
+                    cur.links[cur_level] = node_ptr;
+                    cur.links_len[cur_level] = actual_index - cur_index;
                 }
-
                 if cur_level == 0 {
                     break;
                 }
-
                 cur_level -= 1;
+                continue;
             }
 
-            &mut *cur_ptr
-        };
+            let next_index = cur_index + cur.links_len[cur_level];
+            if next_index < actual_index {
+                // move forward in the same level
+                cur_ptr = cur.links[cur_level];
+                cur_index = next_index;
+                continue;
+            }
+
+            if cur_level <= level {
+                // insert link between current node and the next node
+                node.links_len[cur_level] = next_index + 1 - actual_index;
+                cur.links_len[cur_level] = actual_index - cur_index;
+                node.links[cur_level] = cur.links[cur_level];
+                cur.links[cur_level] = node_ptr;
+            } else {
+                // increase link_len between current node and the next node
+                cur.links_len[cur_level] += 1;
+            }
+
+            if cur_level == 0 {
+                break;
+            }
+
+            cur_level -= 1;
+        }
+
+        let pre_node = unsafe{ &mut *cur_ptr };
 
         node.prev = cur_ptr;
 
@@ -1159,6 +1161,9 @@ pub struct Iter<'a, V> {
     current: Option<&'a Node<V>>,
 }
 
+unsafe impl<'a, V: Sync> Sync for Iter<'a, V> {}
+unsafe impl<'a, V: Send> Send for Iter<'a, V> {}
+
 impl<'a, V> Iterator for Iter<'a, V> {
     type Item = &'a V;
 
@@ -1185,6 +1190,9 @@ pub struct ReverseIter<'a, V> {
     phantom: PhantomData<&'a V>,
 }
 
+unsafe impl<'a, V: Sync> Sync for ReverseIter<'a, V> {}
+unsafe impl<'a, V: Send> Send for ReverseIter<'a, V> {}
+
 impl<'a, V> Iterator for ReverseIter<'a, V> {
     type Item = &'a V;
 
@@ -1209,6 +1217,9 @@ impl<'a, V> Iterator for ReverseIter<'a, V> {
 pub struct IterMut<'a, V> {
     current: Option<&'a mut Node<V>>,
 }
+
+unsafe impl<'a, V: Sync> Sync for IterMut<'a, V> {}
+unsafe impl<'a, V: Send> Send for IterMut<'a, V> {}
 
 impl<'a, V> Iterator for IterMut<'a, V> {
     type Item = &'a mut V;
@@ -1252,6 +1263,9 @@ pub struct Range<'a, V> {
     left: usize,
 }
 
+unsafe impl<'a, V: Sync> Sync for Range<'a, V> {}
+unsafe impl<'a, V: Send> Send for Range<'a, V> {}
+
 impl<'a, V> Iterator for Range<'a, V> {
     type Item = &'a V;
 
@@ -1271,6 +1285,9 @@ pub struct ReverseRange<'a, V> {
     left: usize,
     phantom: PhantomData<&'a V>,
 }
+
+unsafe impl<'a, V: Sync> Sync for ReverseRange<'a, V> {}
+unsafe impl<'a, V: Send> Send for ReverseRange<'a, V> {}
 
 impl<'a, V> Iterator for ReverseRange<'a, V> {
     type Item = &'a V;
@@ -1324,6 +1341,9 @@ pub struct ReverseRangeMut<'a, V> {
     left: usize,
     phantom: PhantomData<&'a V>,
 }
+
+unsafe impl<'a, V: Sync> Sync for ReverseRangeMut<'a, V> {}
+unsafe impl<'a, V: Send> Send for ReverseRangeMut<'a, V> {}
 
 impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
     type Item = &'a mut V;
