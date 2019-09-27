@@ -159,7 +159,7 @@ impl<V: Ord + Display> SkipSet<V> {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// use skiplist::skipset::SkipSet;
     ///
     /// let mut ss1 = SkipSet::new();
@@ -174,70 +174,57 @@ impl<V: Ord + Display> SkipSet<V> {
     /// assert_eq!(ss.contains(&0), true);
     /// assert_eq!(ss.contains(&10), true);
     /// ```
-    pub fn into_symmetric_difference(self, other: Self) -> Self {
-        let lg = self.sk.sk.level_generator.clone();
-        let mut iter_a = self.into_iter();
-        let mut iter_b = other.into_iter();
-        let mut a = iter_a.next();
-        let mut b = iter_b.next();
-        let mut arr = vec![];
-        while a.is_some() || b.is_some() {
-            if a.is_none() {
-                arr.push(b.take().expect("b must not be none"));
-                b = iter_b.next();
-                continue;
-            }
-
-            if b.is_none() {
-                arr.push(a.take().expect("a must not be none"));
-                a = iter_a.next();
-                continue;
-            }
-
-            match a.cmp(&b) {
-                Ordering::Equal => {
-                    a = iter_a.next();
-                    b = iter_b.next();
-                }
-                Ordering::Less => {
-                    arr.push(a.take().expect("a must not be none"));
-                    a = iter_a.next();
-                }
-                Ordering::Greater => {
-                    arr.push(b.take().expect("b must not be none"));
-                    b = iter_b.next();
-                }
-            }
+    pub fn symmetric_difference<'a>(&'a self, other: &'a SkipSet<V>) -> SymmetricDifference<'a, V> {
+        let mut sets_a = self.iter();
+        let mut sets_b = other.iter();
+        SymmetricDifference {
+            value_a: sets_a.next(),
+            value_b: sets_b.next(),
+            sets_a: sets_a,
+            sets_b: sets_b,
         }
+    }
 
-        let mut result = Self::with_level_generator(lg);
-        while !arr.is_empty() {
-            result.add(arr.pop().expect("value must exist"));
+    pub fn difference<'a>(&'a self, other: &'a SkipSet<V>) -> Difference<'a, V> {
+        let mut sets_a = self.iter();
+        let mut sets_b = other.iter();
+        Difference {
+            value_a: sets_a.next(),
+            value_b: sets_b.next(),
+            sets_a: sets_a,
+            sets_b: sets_b,
         }
-
-        result
     }
 
-    fn into_difference(self, other: Self) -> Self {
+    pub fn intersection<'a>(&'a self, other: &'a SkipSet<V>) -> Intersection<'a, V> {
+        let mut sets_a = self.iter();
+        let mut sets_b = other.iter();
+        Intersection {
+            value_a: sets_a.next(),
+            value_b: sets_b.next(),
+            sets_a: sets_a,
+            sets_b: sets_b,
+        }
+    }
+
+    pub fn union<'a>(&'a self, other: &'a SkipSet<V>) -> Union<'a, V> {
+        let mut sets_a = self.iter();
+        let mut sets_b = other.iter();
+        Union {
+            value_a: sets_a.next(),
+            value_b: sets_b.next(),
+            sets_a: sets_a,
+            sets_b: sets_b,
+        }
+    }
+
+    pub fn is_subset(&self, other: &Self) -> bool {
         unimplemented!()
     }
 
-    fn into_intersection(self, other: Self) -> Self {
+    pub fn is_superset(&self, other: &Self) -> bool {
         unimplemented!()
     }
-
-    fn into_union(self, other: Self) -> Self {
-        unimplemented!()
-    }
-
-    fn is_subset(&self, other: &Self) -> bool {
-        unimplemented!()
-    }
-
-    fn is_superset(&self, other: &Self) -> bool {
-        unimplemented!()
-    }
-
 }
 
 impl<V: Ord> IntoIterator for SkipSet<V> {
@@ -266,20 +253,179 @@ impl<V: Ord> IntoIterator for SkipSet<V> {
     }
 }
 
-impl<K: Ord + Copy> SkipSet<K> {
-    fn symmetric_difference(&self, other: &Self) -> Self {
-        unimplemented!()
-    }
+pub struct SymmetricDifference<'a, V: Ord> {
+    sets_a: Iter<'a, V>,
+    sets_b: Iter<'a, V>,
+    value_a: Option<&'a V>,
+    value_b: Option<&'a V>,
+}
 
-    fn difference(&self, other: &Self) -> Self {
-        unimplemented!()
-    }
+impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
+    type Item = &'a V;
 
-    fn intersection(&self, other: &Self) -> Self {
-        unimplemented!()
-    }
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.value_a.is_none() && self.value_b.is_none() {
+                break;
+            }
 
-    fn union(&self, other: &Self) -> Self {
-        unimplemented!()
+            if self.value_a.is_none() {
+                let result = self.value_b.take();
+                self.value_b = self.sets_b.next();
+                return result;
+            }
+
+            if self.value_b.is_none() {
+                let result = self.value_a.take();
+                self.value_a = self.sets_a.next();
+                return result;
+            }
+
+            match self.value_a.cmp(&self.value_b) {
+                Ordering::Equal => {
+                    self.value_a = self.sets_a.next();
+                    self.value_b = self.sets_b.next();
+                }
+                Ordering::Greater => {
+                    let result = self.value_b.take();
+                    self.value_b = self.sets_b.next();
+                    return result;
+                }
+                Ordering::Less => {
+                    let result = self.value_a.take();
+                    self.value_a = self.sets_a.next();
+                    return result;
+                }
+            };
+        }
+
+        None
+    }
+}
+
+pub struct Difference<'a, V: Ord> {
+    sets_a: Iter<'a, V>,
+    sets_b: Iter<'a, V>,
+    value_a: Option<&'a V>,
+    value_b: Option<&'a V>,
+}
+
+impl<'a, V: Ord> Iterator for Difference<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.value_a.is_none() {
+                break;
+            }
+
+            if self.value_b.is_none() {
+                let result = self.value_a.take();
+                self.value_a = self.sets_a.next();
+                return result;
+            }
+
+            match self.value_a.cmp(&self.value_b) {
+                Ordering::Equal => {
+                    self.value_a = self.sets_a.next();
+                    self.value_b = self.sets_b.next();
+                }
+                Ordering::Greater => {
+                    self.value_b = self.sets_b.next();
+                }
+                Ordering::Less => {
+                    let result = self.value_a.take();
+                    self.value_a = self.sets_a.next();
+                    return result;
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct Intersection<'a, V: Ord> {
+    sets_a: Iter<'a, V>,
+    sets_b: Iter<'a, V>,
+    value_a: Option<&'a V>,
+    value_b: Option<&'a V>,
+}
+
+impl<'a, V: Ord> Iterator for Intersection<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.value_a.is_none() || self.value_b.is_none() {
+                break;
+            }
+
+            match self.value_a.cmp(&self.value_b) {
+                Ordering::Equal => {
+                    let result = self.value_a.take();
+                    self.value_a = self.sets_a.next();
+                    self.value_b = self.sets_b.next();
+                    return result;
+                }
+                Ordering::Greater => {
+                    self.value_b = self.sets_b.next();
+                }
+                Ordering::Less => {
+                    self.value_a = self.sets_a.next();
+                }
+            }
+        }
+        None
+    }
+}
+
+pub struct Union<'a, V: Ord> {
+    sets_a: Iter<'a, V>,
+    sets_b: Iter<'a, V>,
+    value_a: Option<&'a V>,
+    value_b: Option<&'a V>,
+}
+
+impl<'a, V: Ord> Iterator for Union<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.value_a.is_none() && self.value_b.is_none() {
+                break;
+            }
+
+            if self.value_a.is_none() {
+                let result = self.value_b.take();
+                self.value_b = self.sets_b.next();
+                return result;
+            }
+
+            if self.value_b.is_none() {
+                let result = self.value_a.take();
+                self.value_a = self.sets_a.next();
+                return result;
+            }
+
+            match self.value_a.cmp(&self.value_b) {
+                Ordering::Equal => {
+                    let result = self.value_a.take();
+                    self.value_a = self.sets_a.next();
+                    self.value_b = self.sets_b.next();
+                    return result;
+                }
+                Ordering::Greater => {
+                    let result = self.value_b.take();
+                    self.value_b = self.sets_b.next();
+                    return result;
+                }
+                Ordering::Less => {
+                    let result = self.value_a.take();
+                    self.value_a = self.sets_a.next();
+                    return result;
+                }
+            }
+        }
+        None
     }
 }
