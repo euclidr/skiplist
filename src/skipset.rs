@@ -15,7 +15,7 @@ pub struct SkipSet<V: Ord> {
     sk: OrderedSkipList<V>,
 }
 
-impl<V: Ord + Display> SkipSet<V> {
+impl<V: Ord> SkipSet<V> {
     pub fn new() -> Self {
         Self::with_level_generator(LevelGenerator::new())
     }
@@ -126,7 +126,7 @@ impl<V: Ord + Display> SkipSet<V> {
     }
 
     /// Returns graph that contains a range of elements of the skipset
-    /// same as [`SkipList::explain`]: trait.SkipList.html#method.explain
+    /// same as [`SkipList::explain`]: struct.SkipList.html#method.explain
     pub fn explain<R>(&self, range: R) -> Result<String, &'static str>
     where
         V: std::fmt::Display,
@@ -155,11 +155,11 @@ impl<V: Ord + Display> SkipSet<V> {
         self.sk.range(range)
     }
 
-    /// Return a difference sets
+    /// Returns a lazy iterator producing elements in the symmetric difference of `SkipSet`s.
     ///
-    /// # Example
+    /// # Examples
     ///
-    /// ```ignore
+    /// ```
     /// use skiplist::skipset::SkipSet;
     ///
     /// let mut ss1 = SkipSet::new();
@@ -169,52 +169,232 @@ impl<V: Ord + Display> SkipSet<V> {
     ///     ss2.add(i+1);
     /// }
     ///
-    /// let ss = ss1.into_symmetric_difference(ss2);
-    /// assert_eq!(ss.cardinal(), 2);
-    /// assert_eq!(ss.contains(&0), true);
-    /// assert_eq!(ss.contains(&10), true);
+    /// let arr: Vec<_> = ss1.symmetric_difference(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 2);
+    /// assert_eq!(arr, vec![0, 10]);
     /// ```
-    pub fn symmetric_difference<'a>(&'a self, other: &'a SkipSet<V>) -> SymmetricDifference<'a, V> {
-        let mut sets_a = self.iter();
-        let mut sets_b = other.iter();
+    pub fn symmetric_difference<'a>(&'a self, rhs: &'a SkipSet<V>) -> SymmetricDifference<'a, V> {
+        let mut lhs_iter = self.iter();
+        let mut rhs_iter = rhs.iter();
         SymmetricDifference {
-            value_a: sets_a.next(),
-            value_b: sets_b.next(),
-            sets_a: sets_a,
-            sets_b: sets_b,
+            lhs_value: lhs_iter.next(),
+            rhs_value: rhs_iter.next(),
+            lhs_iter: lhs_iter,
+            rhs_iter: rhs_iter,
         }
     }
 
-    pub fn difference<'a>(&'a self, other: &'a SkipSet<V>) -> Difference<'a, V> {
-        let mut sets_a = self.iter();
-        let mut sets_b = other.iter();
-        Difference {
-            value_a: sets_a.next(),
-            value_b: sets_b.next(),
-            sets_a: sets_a,
-            sets_b: sets_b,
+    /// Returns a lazy iterator producing elements in the difference of `SkipSet`s.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<_> = ss1.difference(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 1);
+    /// assert_eq!(arr, vec![0]);
+    /// ```
+    pub fn difference<'a>(&'a self, rhs: &'a SkipSet<V>) -> Difference<'a, V> {
+        // Use the search method if lhs's cardinal is much smaller than rhs's
+        if self.cardinal() * rhs.levels() < rhs.cardinal() {
+            return self.difference_search(rhs);
         }
+        // else use the traverse method
+        self.difference_traverse(rhs)
     }
 
-    pub fn intersection<'a>(&'a self, other: &'a SkipSet<V>) -> Intersection<'a, V> {
-        let mut sets_a = self.iter();
-        let mut sets_b = other.iter();
-        Intersection {
-            value_a: sets_a.next(),
-            value_b: sets_b.next(),
-            sets_a: sets_a,
-            sets_b: sets_b,
-        }
+    /// Returns a lazy iterator producing elements in the difference of `SkipSet`s.
+    ///
+    /// It's suitable when the cardinals of `self` and `rhs` is relatively close, but you should
+    /// use [`SkipSet::difference`]: #method.difference most of the time, because it has been chosen
+    /// for you.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<_> = ss1.difference_traverse(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 1);
+    /// assert_eq!(arr, vec![0]);
+    /// ```
+    pub fn difference_traverse<'a>(&'a self, rhs: &'a SkipSet<V>) -> Difference<'a, V> {
+        let mut lhs_iter = self.iter();
+        let mut rhs_iter = rhs.iter();
+
+        Difference::Traverse(DifferenceTraverse {
+            lhs_value: lhs_iter.next(),
+            rhs_value: rhs_iter.next(),
+            lhs_iter: lhs_iter,
+            rhs_iter: rhs_iter,
+        })
     }
 
-    pub fn union<'a>(&'a self, other: &'a SkipSet<V>) -> Union<'a, V> {
-        let mut sets_a = self.iter();
-        let mut sets_b = other.iter();
+    /// Returns a lazy iterator producing elements in the difference of `SkipSet`s.
+    ///
+    /// It's suitable when the cardinals of `rhs` is much larger than `self`'s, but you should
+    /// use [`SkipSet::difference`]: #method.difference most of the time, because it has been chosen
+    /// for you.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..3 {
+    ///     ss1.add(i);
+    /// }
+    /// for i in 3..30 {
+    ///     ss2.add(i);
+    /// }
+    ///
+    /// let arr: Vec<_> = ss1.difference_search(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 3);
+    /// assert_eq!(arr, (0..3).collect::<Vec<i32>>());
+    /// ```
+    pub fn difference_search<'a>(&'a self, rhs: &'a SkipSet<V>) -> Difference<'a, V> {
+        Difference::Search(DifferenceSearch {
+            lhs_iter: self.iter(),
+            rhs: rhs,
+        })
+    }
+
+    /// Returns a lazy iterator producing elements in the intersection of `SkipSet`s.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<i32> = ss1.intersection(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 9);
+    /// assert_eq!(arr, (1..10).collect::<Vec<i32>>());
+    /// ```
+    pub fn intersection<'a>(&'a self, rhs: &'a SkipSet<V>) -> Intersection<'a, V> {
+        let (mut lhs, mut rhs) = (self, rhs);
+        if rhs.cardinal() < lhs.cardinal() {
+            std::mem::swap(&mut lhs, &mut rhs);
+        }
+
+        if lhs.cardinal() * rhs.levels() < rhs.cardinal() {
+            return lhs.intersection_search(rhs);
+        }
+
+        lhs.intersection_traverse(rhs)
+    }
+
+    /// Returns a lazy iterator producing elements in the intersection of `SkipSet`s.
+    ///
+    /// It's suitable when the cardinals of `self` and `rhs` is relatively close, but you should
+    /// use [`SkipSet::intersection`]: #method.intersection most of the time, because it has been chosen
+    /// for you.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<i32> = ss1.intersection_traverse(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 9);
+    /// assert_eq!(arr, (1..10).collect::<Vec<i32>>());
+    /// ```
+    pub fn intersection_traverse<'a>(&'a self, rhs: &'a SkipSet<V>) -> Intersection<'a, V> {
+        let mut lhs_iter = self.iter();
+        let mut rhs_iter = rhs.iter();
+        Intersection::Traverse(IntersectionTraverse {
+            lhs_value: lhs_iter.next(),
+            rhs_value: rhs_iter.next(),
+            lhs_iter: lhs_iter,
+            rhs_iter: rhs_iter,
+        })
+    }
+
+    /// Returns a lazy iterator producing elements in the intersection of `SkipSet`s.
+    ///
+    /// It's suitable when the cardinals of `rhs` is much larger than `self`'s, but you should
+    /// use [`SkipSet::intersection`]: #method.intersection most of the time, because it has been chosen
+    /// for you.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<i32> = ss1.intersection_search(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 9);
+    /// assert_eq!(arr, (1..10).collect::<Vec<i32>>());
+    /// ```
+    pub fn intersection_search<'a>(&'a self, rhs: &'a SkipSet<V>) -> Intersection<'a, V> {
+        Intersection::Search(IntersectionSearch {
+            lhs_iter: self.iter(),
+            rhs: rhs,
+        })
+    }
+
+    /// Returns a lazy iterator producing elements in the union of `SkipSet`'s.
+    ///
+    /// # Examples
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    ///     ss2.add(i+1);
+    /// }
+    ///
+    /// let arr: Vec<i32> = ss1.union(&ss2).cloned().collect();
+    /// assert_eq!(arr.len(), 11);
+    /// assert_eq!(arr, (0..11).collect::<Vec<i32>>());
+    /// ```
+    pub fn union<'a>(&'a self, rhs: &'a SkipSet<V>) -> Union<'a, V> {
+        let mut lhs_iter = self.iter();
+        let mut rhs_iter = rhs.iter();
         Union {
-            value_a: sets_a.next(),
-            value_b: sets_b.next(),
-            sets_a: sets_a,
-            sets_b: sets_b,
+            lhs_value: lhs_iter.next(),
+            rhs_value: rhs_iter.next(),
+            lhs_iter: lhs_iter,
+            rhs_iter: rhs_iter,
         }
     }
 
@@ -224,6 +404,10 @@ impl<V: Ord + Display> SkipSet<V> {
 
     pub fn is_superset(&self, other: &Self) -> bool {
         unimplemented!()
+    }
+
+    fn levels(&self) -> usize {
+        self.sk.sk.head.links.len()
     }
 }
 
@@ -253,11 +437,18 @@ impl<V: Ord> IntoIterator for SkipSet<V> {
     }
 }
 
+/// A lazy iterator producing elements in the symmetric difference of `SkipSet`'s.
+///
+/// This `struct` is created by the [`symmetric_difference`] method on
+/// [`SkipSet`]. See its documentation for more.
+///
+/// [`SkipSet`]: struct.SkipSet.html
+/// [`symmetric_difference`]: struct.SkipSet.html#method.symmetric_difference
 pub struct SymmetricDifference<'a, V: Ord> {
-    sets_a: Iter<'a, V>,
-    sets_b: Iter<'a, V>,
-    value_a: Option<&'a V>,
-    value_b: Option<&'a V>,
+    lhs_iter: Iter<'a, V>,
+    rhs_iter: Iter<'a, V>,
+    lhs_value: Option<&'a V>,
+    rhs_value: Option<&'a V>,
 }
 
 impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
@@ -265,35 +456,35 @@ impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.value_a.is_none() && self.value_b.is_none() {
+            if self.lhs_value.is_none() && self.rhs_value.is_none() {
                 break;
             }
 
-            if self.value_a.is_none() {
-                let result = self.value_b.take();
-                self.value_b = self.sets_b.next();
+            if self.lhs_value.is_none() {
+                let result = self.rhs_value.take();
+                self.rhs_value = self.rhs_iter.next();
                 return result;
             }
 
-            if self.value_b.is_none() {
-                let result = self.value_a.take();
-                self.value_a = self.sets_a.next();
+            if self.rhs_value.is_none() {
+                let result = self.lhs_value.take();
+                self.lhs_value = self.lhs_iter.next();
                 return result;
             }
 
-            match self.value_a.cmp(&self.value_b) {
+            match self.lhs_value.cmp(&self.rhs_value) {
                 Ordering::Equal => {
-                    self.value_a = self.sets_a.next();
-                    self.value_b = self.sets_b.next();
+                    self.lhs_value = self.lhs_iter.next();
+                    self.rhs_value = self.rhs_iter.next();
                 }
                 Ordering::Greater => {
-                    let result = self.value_b.take();
-                    self.value_b = self.sets_b.next();
+                    let result = self.rhs_value.take();
+                    self.rhs_value = self.rhs_iter.next();
                     return result;
                 }
                 Ordering::Less => {
-                    let result = self.value_a.take();
-                    self.value_a = self.sets_a.next();
+                    let result = self.lhs_value.take();
+                    self.lhs_value = self.lhs_iter.next();
                     return result;
                 }
             };
@@ -303,40 +494,125 @@ impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
     }
 }
 
-pub struct Difference<'a, V: Ord> {
-    sets_a: Iter<'a, V>,
-    sets_b: Iter<'a, V>,
-    value_a: Option<&'a V>,
-    value_b: Option<&'a V>,
+#[doc(hidden)]
+pub struct DifferenceTraverse<'a, V: Ord> {
+    lhs_iter: Iter<'a, V>,
+    rhs_iter: Iter<'a, V>,
+    lhs_value: Option<&'a V>,
+    rhs_value: Option<&'a V>,
+}
+
+impl<'a, V: Ord> Iterator for DifferenceTraverse<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.lhs_value.is_none() {
+                break;
+            }
+
+            if self.rhs_value.is_none() {
+                let result = self.lhs_value.take();
+                self.lhs_value = self.lhs_iter.next();
+                return result;
+            }
+
+            match self.lhs_value.cmp(&self.rhs_value) {
+                Ordering::Equal => {
+                    self.lhs_value = self.lhs_iter.next();
+                    self.rhs_value = self.rhs_iter.next();
+                }
+                Ordering::Greater => {
+                    self.rhs_value = self.rhs_iter.next();
+                }
+                Ordering::Less => {
+                    let result = self.lhs_value.take();
+                    self.lhs_value = self.lhs_iter.next();
+                    return result;
+                }
+            }
+        }
+        None
+    }
+}
+
+#[doc(hidden)]
+pub struct DifferenceSearch<'a, V: Ord> {
+    lhs_iter: Iter<'a, V>,
+    rhs: &'a SkipSet<V>,
+}
+
+impl<'a, V: Ord> Iterator for DifferenceSearch<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.lhs_iter.next() {
+                None => break,
+                Some(value) => {
+                    if !self.rhs.contains(value) {
+                        return Some(value);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+/// A lazy iterator producing elements in the difference of `SkipSet`'s.
+///
+/// This `struct` is created by the [`difference`] method on
+/// [`SkipSet`]. See its documentation for more.
+///
+/// [`SkipSet`]: struct.SkipSet.html
+/// [`difference`]: struct.SkipSet.html#method.difference
+pub enum Difference<'a, V: Ord> {
+    Traverse(DifferenceTraverse<'a, V>),
+    Search(DifferenceSearch<'a, V>),
 }
 
 impl<'a, V: Ord> Iterator for Difference<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Difference::Traverse(d) => d.next(),
+            Difference::Search(d) => d.next(),
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct IntersectionTraverse<'a, V: Ord> {
+    lhs_iter: Iter<'a, V>,
+    rhs_iter: Iter<'a, V>,
+    lhs_value: Option<&'a V>,
+    rhs_value: Option<&'a V>,
+}
+
+impl<'a, V: Ord> Iterator for IntersectionTraverse<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.value_a.is_none() {
+            if self.lhs_value.is_none() || self.rhs_value.is_none() {
                 break;
             }
 
-            if self.value_b.is_none() {
-                let result = self.value_a.take();
-                self.value_a = self.sets_a.next();
-                return result;
-            }
-
-            match self.value_a.cmp(&self.value_b) {
+            match self.lhs_value.cmp(&self.rhs_value) {
                 Ordering::Equal => {
-                    self.value_a = self.sets_a.next();
-                    self.value_b = self.sets_b.next();
+                    let result = self.lhs_value.take();
+                    self.lhs_value = self.lhs_iter.next();
+                    self.rhs_value = self.rhs_iter.next();
+                    return result;
                 }
                 Ordering::Greater => {
-                    self.value_b = self.sets_b.next();
+                    self.rhs_value = self.rhs_iter.next();
                 }
                 Ordering::Less => {
-                    let result = self.value_a.take();
-                    self.value_a = self.sets_a.next();
-                    return result;
+                    self.lhs_value = self.lhs_iter.next();
                 }
             }
         }
@@ -344,46 +620,66 @@ impl<'a, V: Ord> Iterator for Difference<'a, V> {
     }
 }
 
-pub struct Intersection<'a, V: Ord> {
-    sets_a: Iter<'a, V>,
-    sets_b: Iter<'a, V>,
-    value_a: Option<&'a V>,
-    value_b: Option<&'a V>,
+#[doc(hidden)]
+pub struct IntersectionSearch<'a, V: Ord> {
+    lhs_iter: Iter<'a, V>,
+    rhs: &'a SkipSet<V>,
+}
+
+impl<'a, V: Ord> Iterator for IntersectionSearch<'a, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.lhs_iter.next() {
+                None => break,
+                Some(value) => {
+                    if self.rhs.contains(value) {
+                        return Some(value);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+/// A lazy iterator producing elements in the intersection of `SkipSet`'s.
+///
+/// This `struct` is created by the [`intersection`] method on
+/// [`SkipSet`]. See its documentation for more.
+///
+/// [`SkipSet`]: struct.SkipSet.html
+/// [`intersection`]: struct.SkipSet.html#method.intersection
+pub enum Intersection<'a, V: Ord> {
+    Traverse(IntersectionTraverse<'a, V>),
+    Search(IntersectionSearch<'a, V>),
 }
 
 impl<'a, V: Ord> Iterator for Intersection<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.value_a.is_none() || self.value_b.is_none() {
-                break;
-            }
-
-            match self.value_a.cmp(&self.value_b) {
-                Ordering::Equal => {
-                    let result = self.value_a.take();
-                    self.value_a = self.sets_a.next();
-                    self.value_b = self.sets_b.next();
-                    return result;
-                }
-                Ordering::Greater => {
-                    self.value_b = self.sets_b.next();
-                }
-                Ordering::Less => {
-                    self.value_a = self.sets_a.next();
-                }
-            }
+        match self {
+            Intersection::Traverse(d) => d.next(),
+            Intersection::Search(d) => d.next(),
         }
-        None
     }
 }
 
+/// A lazy iterator producing elements in the union of `SkipSet`'s.
+///
+/// This `struct` is created by the [`union`] method on
+/// [`SkipSet`]. See its documentation for more.
+///
+/// [`SkipSet`]: struct.SkipSet.html
+/// [`union`]: struct.SkipSet.html#method.union
 pub struct Union<'a, V: Ord> {
-    sets_a: Iter<'a, V>,
-    sets_b: Iter<'a, V>,
-    value_a: Option<&'a V>,
-    value_b: Option<&'a V>,
+    lhs_iter: Iter<'a, V>,
+    rhs_iter: Iter<'a, V>,
+    lhs_value: Option<&'a V>,
+    rhs_value: Option<&'a V>,
 }
 
 impl<'a, V: Ord> Iterator for Union<'a, V> {
@@ -391,37 +687,37 @@ impl<'a, V: Ord> Iterator for Union<'a, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.value_a.is_none() && self.value_b.is_none() {
+            if self.lhs_value.is_none() && self.rhs_value.is_none() {
                 break;
             }
 
-            if self.value_a.is_none() {
-                let result = self.value_b.take();
-                self.value_b = self.sets_b.next();
+            if self.lhs_value.is_none() {
+                let result = self.rhs_value.take();
+                self.rhs_value = self.rhs_iter.next();
                 return result;
             }
 
-            if self.value_b.is_none() {
-                let result = self.value_a.take();
-                self.value_a = self.sets_a.next();
+            if self.rhs_value.is_none() {
+                let result = self.lhs_value.take();
+                self.lhs_value = self.lhs_iter.next();
                 return result;
             }
 
-            match self.value_a.cmp(&self.value_b) {
+            match self.lhs_value.cmp(&self.rhs_value) {
                 Ordering::Equal => {
-                    let result = self.value_a.take();
-                    self.value_a = self.sets_a.next();
-                    self.value_b = self.sets_b.next();
+                    let result = self.lhs_value.take();
+                    self.lhs_value = self.lhs_iter.next();
+                    self.rhs_value = self.rhs_iter.next();
                     return result;
                 }
                 Ordering::Greater => {
-                    let result = self.value_b.take();
-                    self.value_b = self.sets_b.next();
+                    let result = self.rhs_value.take();
+                    self.rhs_value = self.rhs_iter.next();
                     return result;
                 }
                 Ordering::Less => {
-                    let result = self.value_a.take();
-                    self.value_a = self.sets_a.next();
+                    let result = self.lhs_value.take();
+                    self.lhs_value = self.lhs_iter.next();
                     return result;
                 }
             }

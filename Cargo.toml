@@ -15,3 +15,7 @@ criterion = "0.3"
 [[bench]]
 name = "skiplist_benchmark"
 harness = false
+
+[[bench]]
+name = "skipset_benchmark"
+harness = false
