@@ -512,9 +512,7 @@ impl<'a, V: Ord> Iterator for DifferenceTraverse<'a, V> {
             }
 
             if self.rhs_value.is_none() {
-                let result = self.lhs_value.take();
-                self.lhs_value = self.lhs_iter.next();
-                return result;
+                return std::mem::replace(&mut self.lhs_value, self.lhs_iter.next())
             }
 
             match self.lhs_value.cmp(&self.rhs_value) {
@@ -526,9 +524,7 @@ impl<'a, V: Ord> Iterator for DifferenceTraverse<'a, V> {
                     self.rhs_value = self.rhs_iter.next();
                 }
                 Ordering::Less => {
-                    let result = self.lhs_value.take();
-                    self.lhs_value = self.lhs_iter.next();
-                    return result;
+                    return std::mem::replace(&mut self.lhs_value, self.lhs_iter.next());
                 }
             }
         }
