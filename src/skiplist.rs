@@ -1417,6 +1417,13 @@ impl<'a, V> Iterator for ReverseRangeMut<'a, V> {
     }
 }
 
+impl<V> Drop for SkipList<V> {
+    fn drop(&mut self) {
+        // Tuning is needed.
+        while self.pop_front().is_some() {}
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
