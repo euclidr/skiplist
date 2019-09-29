@@ -19,3 +19,10 @@ harness = false
 [[bench]]
 name = "skipset_benchmark"
 harness = false
+
+[[examples]]
+name = "skipset_add"
+path = "examples/skipset_add.rs"
+
+[profile.release]
+debug = true
