@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::fmt::Display;
+// use std::fmt::Display;
 use std::ops::RangeBounds;
 
 use rand;
@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng};
 
 use crate::level_generator::LevelGenerator;
 use crate::ordered_skiplist::OrderedSkipList;
-use crate::skiplist::{IntoIter, Iter, Node, Range};
+use crate::skiplist::{IntoIter, Iter, Range};
 
 pub struct SkipSet<V: Ord> {
     sk: OrderedSkipList<V>,
@@ -398,12 +398,52 @@ impl<V: Ord> SkipSet<V> {
         }
     }
 
-    pub fn is_subset(&self, other: &Self) -> bool {
-        unimplemented!()
+    /// Check if `self` is subset of `rhs`
+    ///
+    /// # Examples
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    /// }
+    /// for i in 0..20 {
+    ///     ss2.add(i);
+    /// }
+    /// assert!(ss1.is_subset(&ss2));
+    /// ```
+    pub fn is_subset(&self, rhs: &Self) -> bool {
+        let mut cnt = 0;
+        for _ in self.intersection(rhs) {
+            cnt += 1;
+        }
+        cnt == self.cardinal()
     }
 
-    pub fn is_superset(&self, other: &Self) -> bool {
-        unimplemented!()
+    /// Check if `self` is super of `rhs`
+    ///
+    /// # Examples
+    /// ```
+    /// use skiplist::skipset::SkipSet;
+    ///
+    /// let mut ss1 = SkipSet::new();
+    /// let mut ss2 = SkipSet::new();
+    /// for i in 0..10 {
+    ///     ss1.add(i);
+    /// }
+    /// for i in 0..20 {
+    ///     ss2.add(i);
+    /// }
+    /// assert!(ss2.is_superset(&ss1));
+    /// ```
+    pub fn is_superset(&self, rhs: &Self) -> bool {
+        let mut cnt = 0;
+        for _ in self.intersection(rhs) {
+            cnt += 1;
+        }
+        cnt == rhs.cardinal()
     }
 
     fn levels(&self) -> usize {
