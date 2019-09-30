@@ -234,11 +234,11 @@ impl<V: Ord> SkipSet<V> {
     /// assert_eq!(arr, vec![0]);
     /// ```
     pub fn difference_traverse<'a>(&'a self, rhs: &'a SkipSet<V>) -> Difference<'a, V> {
-        let mut lhs_iter = self.iter();
+        let lhs_iter = self.iter();
         let mut rhs_iter = rhs.iter();
 
         Difference::Traverse(DifferenceTraverse {
-            lhs_value: lhs_iter.next(),
+            // lhs_value: lhs_iter.next(),
             rhs_value: rhs_iter.next(),
             lhs_iter: lhs_iter,
             rhs_iter: rhs_iter,
@@ -538,7 +538,6 @@ impl<'a, V: Ord> Iterator for SymmetricDifference<'a, V> {
 pub struct DifferenceTraverse<'a, V: Ord> {
     lhs_iter: Iter<'a, V>,
     rhs_iter: Iter<'a, V>,
-    lhs_value: Option<&'a V>,
     rhs_value: Option<&'a V>,
 }
 
@@ -546,29 +545,22 @@ impl<'a, V: Ord> Iterator for DifferenceTraverse<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let mut lhs_value = self.lhs_iter.next()?;
         loop {
-            if self.lhs_value.is_none() {
-                break;
-            }
+            let rhs_value = match self.rhs_value {
+                None => return Some(lhs_value),
+                Some(v) => v,
+            };
 
-            if self.rhs_value.is_none() {
-                return std::mem::replace(&mut self.lhs_value, self.lhs_iter.next())
-            }
-
-            match self.lhs_value.cmp(&self.rhs_value) {
+            match lhs_value.cmp(rhs_value) {
                 Ordering::Equal => {
-                    self.lhs_value = self.lhs_iter.next();
+                    lhs_value = self.lhs_iter.next()?;
                     self.rhs_value = self.rhs_iter.next();
                 }
-                Ordering::Greater => {
-                    self.rhs_value = self.rhs_iter.next();
-                }
-                Ordering::Less => {
-                    return std::mem::replace(&mut self.lhs_value, self.lhs_iter.next());
-                }
+                Ordering::Greater => self.rhs_value = self.rhs_iter.next(),
+                Ordering::Less => return Some(lhs_value),
             }
         }
-        None
     }
 }
 

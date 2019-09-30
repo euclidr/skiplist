@@ -1203,10 +1203,11 @@ unsafe impl<'a, V: Send> Send for Iter<'a, V> {}
 impl<'a, V> Iterator for Iter<'a, V> {
     type Item = &'a V;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.current.map(|node| {
+        self.current.and_then(|node| {
             self.current = node.next.as_ref().map(|node| &**node);
-            node.value.as_ref().expect("normal node always has a value")
+            node.value.as_ref()
         })
     }
 }
